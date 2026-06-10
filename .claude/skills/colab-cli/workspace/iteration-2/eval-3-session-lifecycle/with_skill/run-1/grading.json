@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "Explains SSL errors are often transient, not necessarily fatal",
+      "passed": true,
+      "evidence": "Line 5: \"SSL errors... are a documented transient issue. They happen intermittently and do not inherently mean the Colab session or your background process (PID 903) was destroyed.\""
+    },
+    {
+      "text": "Shows how to verify session with colab sessions / colab status",
+      "passed": true,
+      "evidence": "Line 16: `colab sessions && colab status`"
+    },
+    {
+      "text": "Mentions the background PID (903) may still be alive despite SSL errors",
+      "passed": true,
+      "evidence": "Lines 18-19: \"Your training (PID 903) is likely still running if it was launched with start_new_session=True\""
+    },
+    {
+      "text": "Mentions ~2-4 hour session lifetime and silent termination",
+      "passed": true,
+      "evidence": "Line 8: \"~2-4 hour lifetime\". Also mentions sessions can die in <5 min after connection errors"
+    },
+    {
+      "text": "Shows recovery: new session \u2192 re-upload \u2192 resume from checkpoints",
+      "passed": true,
+      "evidence": "Lines 41-55: Full recovery steps \u2014 colab new, re-upload artifacts, restore checkpoints, re-launch"
+    },
+    {
+      "text": "Advises downloading checkpoints before session dies: colab download",
+      "passed": true,
+      "evidence": "Lines 73-78: \"Download checkpoints during the run, not at the end\" with monitoring loop showing colab download"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 6,
+    "failed": 0,
+    "total": 6
+  }
+}

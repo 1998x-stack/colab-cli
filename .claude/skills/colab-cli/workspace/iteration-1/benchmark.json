@@ -1,0 +1,363 @@
+{
+  "metadata": {
+    "skill_name": "colab-cli",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-06-07T14:57:19Z",
+    "evals_run": [
+      1,
+      2,
+      3
+    ],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 23.6,
+        "tokens": 21250,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Tells user to create a GPU session with colab new --gpu",
+          "passed": true,
+          "evidence": "Line 39: `colab new --gpu T4 --session cifar-run` preceded by the comment \"# Create a T4 GPU session\""
+        },
+        {
+          "text": "Tells user to upload script files with colab upload",
+          "passed": true,
+          "evidence": "Lines 42-44 show three colab upload commands: `colab upload ~/ml/train_cifar.py train_cifar.py`, `colab upload launch.py launch.py`, `colab upload check_progress.py check_progress.py`"
+        },
+        {
+          "text": "Uses start_new_session or subprocess.Popen pattern for background execution",
+          "passed": true,
+          "evidence": "Line 58: \"training continues running because `start_new_session=True` detaches it from the Colab kernel\". Also line 5: \"launch the training as a detached nohup-style subprocess\""
+        },
+        {
+          "text": "Mentions PYTHONUNBUFFERED or python -u for log output",
+          "passed": true,
+          "evidence": "Line 23: \"spawns your script as a detached subprocess with unbuffered stdout (`-u` flag + `PYTHONUNBUFFERED=1`)\". Also line 139 for reinforcement."
+        },
+        {
+          "text": "Mentions installing torch, torchvision, wandb dependencies",
+          "passed": true,
+          "evidence": "Line 19: `DEPS = [\"torch\", \"torchvision\", \"wandb\"]`. Line 23: \"This installs the three dependencies\". Lines 57-58: \"gives pip time to install torch, torchvision, and wandb\""
+        },
+        {
+          "text": "Mentions using relative paths with colab exec -f",
+          "passed": true,
+          "evidence": "Line 136: \"**`colab exec -f` requires relative paths.** Upload to `/content/train_cifar.py` but exec with `-f train_cifar.py`.\""
+        },
+        {
+          "text": "Warns about ~2-4 hour session lifetime",
+          "passed": true,
+          "evidence": "Line 7: \"Session lifetime is ~2-4 hours on free tier\". Line 109: \"Free-tier Colab sessions auto-terminate after approximately 2-4 hours of total runtime.\""
+        },
+        {
+          "text": "Mentions colab download to retrieve checkpoints",
+          "passed": true,
+          "evidence": "Lines 86-90: `colab download checkpoints/` and individual file examples. Line 113: \"The `colab download` command works while the session is still alive.\""
+        },
+        {
+          "text": "Shows how to check on running training (pgrep, log tail, or check_progress script)",
+          "passed": true,
+          "evidence": "Lines 64-78: shows `colab exec -f check_progress.py` which \"shows: whether the process is alive, the last 15 log lines, and any checkpoint files\", plus a monitoring loop with `while true; do ... colab exec -f check_progress.py ... sleep 300; done`"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 10.3,
+        "tokens": 17875,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explains that colab exec -f requires relative paths, not absolute",
+          "passed": true,
+          "evidence": "\"`colab exec -f` requires a **relative path**, not an absolute one.\""
+        },
+        {
+          "text": "Shows correct command: colab exec -f script.py (without /content/ prefix)",
+          "passed": true,
+          "evidence": "```bash\ncolab exec -f script.py\n```"
+        },
+        {
+          "text": "Mentions that working directory is /content/",
+          "passed": true,
+          "evidence": "\"The working directory on the Colab VM is `/content/`\""
+        },
+        {
+          "text": "Mentions stdin pipe as alternative: echo 'code' | colab exec",
+          "passed": false,
+          "evidence": "No mention of stdin pipe or 'echo ... | colab exec' anywhere in the output."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 18.6,
+        "tokens": 19589,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explains SSL errors are often transient, not necessarily fatal",
+          "passed": true,
+          "evidence": "\"SSL errors with `colab exec` are a known transient issue documented under gotcha #5. The error signature (`SSLError: UNEXPECTED_EOF_WHILE_READING`) happens intermittently and does **not** mean the session or your background process (PID 903) has been destroyed.\""
+        },
+        {
+          "text": "Shows how to verify session with colab sessions / colab status",
+          "passed": true,
+          "evidence": "\"Run both commands \u2014 the first refreshes the local session cache from the server, the second shows current session status: `colab sessions && colab status`\""
+        },
+        {
+          "text": "Mentions the background PID (903) may still be alive despite SSL errors",
+          "passed": true,
+          "evidence": "\"does **not** mean the session or your background process (PID 903) has been destroyed\" and \"your training process (PID 903) is likely still running\""
+        },
+        {
+          "text": "Mentions ~2-4 hour session lifetime and silent termination",
+          "passed": true,
+          "evidence": "\"Free-tier Colab sessions auto-terminate after ~2-4 hours of total runtime with no warning.\""
+        },
+        {
+          "text": "Shows recovery: new session \u2192 re-upload \u2192 resume from checkpoints",
+          "passed": true,
+          "evidence": "Step 3 shows: `colab new --gpu T4 --session my-training-2` then re-upload of scripts/training files then `colab exec -f launch.py --timeout 120` to resume."
+        },
+        {
+          "text": "Advises downloading checkpoints before session dies: colab download checkpoints/",
+          "passed": true,
+          "evidence": "\"Download checkpoints **during** the run, not at the end. Use the monitoring loop pattern: `colab download checkpoints/best.pt`\""
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.89,
+        "passed": 8,
+        "failed": 1,
+        "total": 9,
+        "time_seconds": 73.7,
+        "tokens": 51032,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Tells user to create a GPU session with colab new --gpu",
+          "passed": true,
+          "evidence": "Lines 45-49: 'colab new -s train-cifar --gpu T4' under the heading 'Create a Session with GPU'"
+        },
+        {
+          "text": "Tells user to upload script files with colab upload",
+          "passed": true,
+          "evidence": "Lines 55-57: 'colab upload -s train-cifar ~/ml/train_cifar.py /content/train_cifar.py' under the heading 'Upload the Training Script'"
+        },
+        {
+          "text": "Uses start_new_session or subprocess.Popen pattern for background execution",
+          "passed": true,
+          "evidence": "Line 69-70: 'The key to background execution is subprocess.Popen with start_new_session=True.' Lines 84-88: code uses subprocess.Popen(..., start_new_session=True, ...)"
+        },
+        {
+          "text": "Mentions PYTHONUNBUFFERED or python -u for log output",
+          "passed": true,
+          "evidence": "Line 81: env['PYTHONUNBUFFERED'] = '1'. Line 85: [sys.executable, '-u', '/content/train_cifar.py']"
+        },
+        {
+          "text": "Mentions installing torch, torchvision, wandb dependencies",
+          "passed": true,
+          "evidence": "Lines 61-63: 'colab install -s train-cifar torch torchvision wandb' under the heading 'Install Dependencies'"
+        },
+        {
+          "text": "Mentions using relative paths with colab exec -f",
+          "passed": true,
+          "evidence": "Line 99: 'colab exec -s train-cifar -f launch_training.py' \u2014 uses the relative path 'launch_training.py' with the -f flag"
+        },
+        {
+          "text": "Warns about ~2-4 hour session lifetime",
+          "passed": false,
+          "evidence": "No mention of a 2-4 hour session lifetime. The document mentions a 24-hour keep-alive cap (line 218) and general reclamation on inactivity (line 219), but does not warn about a specific ~2-4 hour session window."
+        },
+        {
+          "text": "Mentions colab download to retrieve checkpoints",
+          "passed": true,
+          "evidence": "Lines 173-178: 'colab download -s train-cifar /content/checkpoints/epoch_10.pt ./checkpoints/epoch_10.pt' under the heading 'Downloading Checkpoints'"
+        },
+        {
+          "text": "Shows how to check on running training (pgrep, log tail, or check_progress script)",
+          "passed": true,
+          "evidence": "Lines 131-139: shows pgrep -f train_cifar pattern. Lines 144-151: shows tailing the log. Both under the 'Monitoring Progress' section."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 23.6,
+        "tokens": 24764,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explains that colab exec -f requires relative paths, not absolute",
+          "passed": true,
+          "evidence": "Lines 7-8: 'colab exec -f /content/script.py -- -f means \"read this file from the local filesystem and execute its contents on the remote runtime.\"' and lines 12-14: 'Run exec with the local path to your script, not the remote path: ... colab exec -f script.py'"
+        },
+        {
+          "text": "Shows correct command: colab exec -f script.py (without /content/ prefix)",
+          "passed": true,
+          "evidence": "Line 14: 'colab exec -f script.py'"
+        },
+        {
+          "text": "Mentions that working directory is /content/",
+          "passed": false,
+          "evidence": "No mention of the working directory being /content/ anywhere in the output"
+        },
+        {
+          "text": "Mentions stdin pipe as alternative: echo 'code' | colab exec",
+          "passed": false,
+          "evidence": "No mention of stdin piping or echo 'code' | colab exec anywhere in the output"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.83,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 23.0,
+        "tokens": 21874,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explains SSL errors are often transient, not necessarily fatal",
+          "passed": true,
+          "evidence": "\"SSL errors with `colab exec` are usually transient network issues. The session and your background process (PID 903) may be perfectly fine.\""
+        },
+        {
+          "text": "Shows how to verify session with colab sessions / colab status",
+          "passed": true,
+          "evidence": "\"Run this before anything else: ```bash colab sessions && colab status ```\""
+        },
+        {
+          "text": "Mentions the background PID (903) may still be alive despite SSL errors",
+          "passed": true,
+          "evidence": "\"The session and your background process (PID 903) may be perfectly fine.\" and \"```bash echo 'import os, signal; print(os.kill(903, 0) is None)' | colab exec --timeout 10 ```\""
+        },
+        {
+          "text": "Mentions ~2-4 hour session lifetime and silent termination",
+          "passed": true,
+          "evidence": "\"it was pruned (free Colab sessions last ~2-4 hours)\" and \"free tier is ~2-4 hours total runtime\""
+        },
+        {
+          "text": "Shows recovery: new session \u2192 re-upload \u2192 resume from checkpoints",
+          "passed": true,
+          "evidence": "\"# Create a new session\ncolab new --gpu T4 --session my-training-v2\n\n# Re-upload your code and your last checkpoint\ncolab upload train.py train.py\ncolab upload checkpoints/best.pt checkpoints/best.pt\n\n# Re-launch with --resume flag\""
+        },
+        {
+          "text": "Advises downloading checkpoints before session dies: colab download checkpoints/",
+          "passed": false,
+          "evidence": "The output advises downloading checkpoints generally (\"Download checkpoints periodically during training\") but does not show the specific command `colab download checkpoints/`."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9167,
+        "stddev": 0.1443,
+        "min": 0.75,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 17.5,
+        "stddev": 6.7179,
+        "min": 10.3,
+        "max": 23.6
+      },
+      "tokens": {
+        "mean": 19571.3333,
+        "stddev": 1687.5694,
+        "min": 17875,
+        "max": 21250
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.74,
+        "stddev": 0.21,
+        "min": 0.5,
+        "max": 0.89
+      },
+      "time_seconds": {
+        "mean": 40.1,
+        "stddev": 29.1,
+        "min": 23.0,
+        "max": 73.7
+      },
+      "tokens": {
+        "mean": 32556.6667,
+        "stddev": 16065.2258,
+        "min": 21874,
+        "max": 51032
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.18",
+      "time_seconds": "-22.6",
+      "tokens": "-12985"
+    }
+  },
+  "notes": []
+}

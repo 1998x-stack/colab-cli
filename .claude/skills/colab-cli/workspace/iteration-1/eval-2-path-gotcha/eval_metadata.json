@@ -1,0 +1,11 @@
+{
+  "eval_id": 2,
+  "eval_name": "path-gotcha",
+  "prompt": "I uploaded my script to colab with 'colab upload script.py /content/script.py' and it said 'Uploaded' but when I run 'colab exec -f /content/script.py' I get FileNotFoundError. What's wrong?",
+  "assertions": [
+    {"name": "identifies-relative-path-issue", "description": "Explains that colab exec -f requires relative paths, not absolute"},
+    {"name": "gives-correct-syntax", "description": "Shows correct command: colab exec -f script.py (without /content/ prefix)"},
+    {"name": "explains-cwd-is-content", "description": "Mentions that working directory is /content/"},
+    {"name": "mentions-stdin-alternative", "description": "Mentions stdin pipe as alternative: echo 'code' | colab exec"}
+  ]
+}

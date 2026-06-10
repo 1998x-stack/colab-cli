@@ -1,0 +1,180 @@
+Downloading Tiny Shakespeare dataset...
+Dataset length: 1,115,394 characters
+Vocab size: 65
+Train tokens: 1,003,854, Val tokens: 111,540
+Device: cuda, dtype: bfloat16
+max_iters=500, batch_size=64, block_size=256
+number of parameters: 10.75M
+num decayed parameter tensors: 26, with 10,740,096 parameters
+num non-decayed parameter tensors: 13, with 4,992 parameters
+using fused AdamW: True
+Compiling model... (may take ~30s)
+
+=== Starting training ===
+
+W0610 15:37:34.796000 725 torch/_inductor/utils.py:1731] [0/0] Not enough SMs to use max_autotune_gemm mode
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py:2941: UserWarning: Tesla T4 does not support bfloat16 compilation natively, skipping
+  warnings.warn(
+step     0: train loss 4.2882, val loss 4.2819  [39464ms]
+  -> saved checkpoint (best val loss: 4.2819)
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py:2941: UserWarning: Tesla T4 does not support bfloat16 compilation natively, skipping
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py:2941: UserWarning: Tesla T4 does not support bfloat16 compilation natively, skipping
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py:2941: UserWarning: Tesla T4 does not support bfloat16 compilation natively, skipping
+  warnings.warn(
+iter     0: loss 4.2653, dt 4144.83ms, mfu -100.00%
+iter    10: loss 2.9894, dt 539.31ms, mfu 0.69%
+iter    20: loss 2.6665, dt 543.93ms, mfu 0.69%
+iter    30: loss 2.5677, dt 551.10ms, mfu 0.69%
+iter    40: loss 2.5352, dt 556.65ms, mfu 0.69%
+iter    50: loss 2.5149, dt 561.66ms, mfu 0.68%
+iter    60: loss 2.4937, dt 565.50ms, mfu 0.68%
+iter    70: loss 2.4662, dt 564.61ms, mfu 0.68%
+iter    80: loss 2.4610, dt 557.68ms, mfu 0.68%
+iter    90: loss 2.4451, dt 554.63ms, mfu 0.68%
+step   100: train loss 2.4169, val loss 2.4540  [31366ms]
+  -> saved checkpoint (best val loss: 2.4540)
+iter   100: loss 2.4563, dt 29.97ms, mfu 1.85%
+iter   110: loss 2.4397, dt 544.05ms, mfu 1.74%
+iter   120: loss 2.4411, dt 543.80ms, mfu 1.63%
+iter   130: loss 2.3991, dt 544.48ms, mfu 1.54%
+iter   140: loss 2.3887, dt 547.93ms, mfu 1.45%
+iter   150: loss 2.3635, dt 551.64ms, mfu 1.37%
+iter   160: loss 2.3441, dt 550.18ms, mfu 1.30%
+iter   170: loss 2.2913, dt 550.54ms, mfu 1.24%
+iter   180: loss 2.2484, dt 554.74ms, mfu 1.18%
+iter   190: loss 2.2054, dt 549.58ms, mfu 1.13%
+step   200: train loss 2.0896, val loss 2.1603  [31612ms]
+  -> saved checkpoint (best val loss: 2.1603)
+iter   200: loss 2.1528, dt 30.11ms, mfu 2.26%
+iter   210: loss 2.1328, dt 548.10ms, mfu 2.10%
+iter   220: loss 2.0777, dt 547.02ms, mfu 1.96%
+iter   230: loss 2.0748, dt 548.09ms, mfu 1.83%
+iter   240: loss 2.0286, dt 549.36ms, mfu 1.72%
+iter   250: loss 2.0188, dt 546.51ms, mfu 1.61%
+iter   260: loss 1.9925, dt 547.39ms, mfu 1.52%
+iter   270: loss 1.9567, dt 545.85ms, mfu 1.44%
+iter   280: loss 1.9451, dt 548.35ms, mfu 1.36%
+iter   290: loss 1.9168, dt 547.26ms, mfu 1.29%
+step   300: train loss 1.8079, val loss 1.9631  [31536ms]
+  -> saved checkpoint (best val loss: 1.9631)
+iter   300: loss 1.8784, dt 28.16ms, mfu 2.49%
+iter   310: loss 1.8755, dt 546.12ms, mfu 2.31%
+iter   320: loss 1.8565, dt 547.43ms, mfu 2.14%
+iter   330: loss 1.8740, dt 548.39ms, mfu 2.00%
+iter   340: loss 1.8259, dt 550.29ms, mfu 1.86%
+iter   350: loss 1.8271, dt 550.26ms, mfu 1.75%
+iter   360: loss 1.7957, dt 548.97ms, mfu 1.64%
+iter   370: loss 1.8062, dt 550.70ms, mfu 1.54%
+iter   380: loss 1.7971, dt 549.06ms, mfu 1.46%
+iter   390: loss 1.7657, dt 548.85ms, mfu 1.38%
+step   400: train loss 1.6656, val loss 1.8253  [31563ms]
+  -> saved checkpoint (best val loss: 1.8253)
+iter   400: loss 1.7506, dt 40.39ms, mfu 2.16%
+iter   410: loss 1.7363, dt 547.76ms, mfu 2.02%
+iter   420: loss 1.7624, dt 547.01ms, mfu 1.88%
+iter   430: loss 1.7334, dt 549.55ms, mfu 1.76%
+iter   440: loss 1.7103, dt 548.02ms, mfu 1.65%
+iter   450: loss 1.7197, dt 549.46ms, mfu 1.56%
+iter   460: loss 1.6670, dt 546.82ms, mfu 1.47%
+iter   470: loss 1.7284, dt 547.01ms, mfu 1.39%
+iter   480: loss 1.6937, dt 547.08ms, mfu 1.32%
+iter   490: loss 1.6822, dt 547.96ms, mfu 1.25%
+step   500: train loss 1.6039, val loss 1.7895  [31567ms]
+  -> saved checkpoint (best val loss: 1.7895)
+iter   500: loss 1.6930, dt 39.08ms, mfu 2.08%
+
+=== Training complete! Best val loss: 1.7895 ===
+
+Metrics saved to /content/out-nanogpt/metrics.json
+
+Generating plots...
+Loss plot saved to /content/out-nanogpt/loss_curve.png
+Time plot saved to /content/out-nanogpt/time_plot.png
+
+Generating sample text...
+Samples saved to /content/out-nanogpt/samples.json
+
+============================================================
+  Generated sample (temperature=0.7)
+============================================================
+
+Nurse:
+Which the was sickly his this poather's son,
+The san the cold the flace of this confrient
+To the genter upon the beity, the sould face
+and as deself the prought of my hearted
+And me no my blood with the cannoth thee?
+
+CLARENCE:
+The come not my graents the was me let be name
+To comean ther be meanswer; and they is have prizen
+that dor so the eart that common'd and gloved
+To have the I was brother
+and been father I posing to such thee
+love as in king to beance
+hid and as will fell the flaug
+...
+
+============================================================
+  Generated sample (temperature=1.0)
+============================================================
+
+And that dangue livk with suckils.
+GLood disaberliadow they ling!
+
+QUEEN ZABETH:
+As minted up may I bejoy Engrace ago,
+Why, sir? You had, which adds not would sign?
+
+DUKE OF YORK:
+My lord!
+
+POMPEY:
+Thou have but thou we with aster's to that the?
+
+SICINIUS:
+Slaw, my love me najes:
+No, my life fids a leave to such timeRich,
+And as a fetty was hown.
+
+MENENIUS:
+Come!
+Ill life much mother her you have will from bide:
+'Tis dosa not my her begems
+To their was his have: not alm fornshould from fullow;
+A
+...
+
+============================================================
+  Generated sample (temperature=1.2)
+============================================================
+
+Provolrant, unees.
+Why, and nothardly, bone, being't in unds;
+And brokes quarswend--Or glanger; beepor hed,
+Lord any world the gaus the mack.
+Down paor; of Richardit, my stay;
+Wobllow have leness,
+Our happy to in siolay toif Might:
+For to but ex!
+
+PETNIUS:
+I'll in oundother!
+
+PraJULIET:
+Which been Kistro VINCENTA-sitio
+Satifs:
+So the sdead worsands ceess of s you.
+
+TRUS:
+Delt thus, thy coffesper'd, my lights,
+Idably to you amk upon must never
+
+Provoss:
+Do ou worwick is not jure affer sac of to h
+...
+
+=== All done! ===
+Outputs in /content/out-nanogpt/: ckpt.pt, metrics.json, loss_curve.png, time_plot.png, samples.json

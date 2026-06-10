@@ -1,0 +1,11 @@
+{
+  "eval_id": 2,
+  "eval_name": "path-gotcha",
+  "prompt": "I uploaded my script to colab with 'colab upload script.py /content/script.py' and it said 'Uploaded' but when I run 'colab exec -f /content/script.py' I get FileNotFoundError. What's wrong?",
+  "assertions": [
+    {"text": "Explains that colab exec -f reads local files (relative to CWD), not remote VM files", "passed": false, "evidence": ""},
+    {"text": "Shows correct command: colab exec -f script.py (without /content/ prefix)", "passed": false, "evidence": ""},
+    {"text": "Mentions that working directory on the VM is /content/", "passed": false, "evidence": ""},
+    {"text": "Mentions stdin pipe as alternative: echo 'code' | colab exec", "passed": false, "evidence": ""}
+  ]
+}

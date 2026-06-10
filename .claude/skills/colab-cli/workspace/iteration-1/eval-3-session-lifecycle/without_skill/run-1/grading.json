@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "Explains SSL errors are often transient, not necessarily fatal",
+      "passed": true,
+      "evidence": "\"SSL errors with `colab exec` are usually transient network issues. The session and your background process (PID 903) may be perfectly fine.\""
+    },
+    {
+      "text": "Shows how to verify session with colab sessions / colab status",
+      "passed": true,
+      "evidence": "\"Run this before anything else: ```bash colab sessions && colab status ```\""
+    },
+    {
+      "text": "Mentions the background PID (903) may still be alive despite SSL errors",
+      "passed": true,
+      "evidence": "\"The session and your background process (PID 903) may be perfectly fine.\" and \"```bash echo 'import os, signal; print(os.kill(903, 0) is None)' | colab exec --timeout 10 ```\""
+    },
+    {
+      "text": "Mentions ~2-4 hour session lifetime and silent termination",
+      "passed": true,
+      "evidence": "\"it was pruned (free Colab sessions last ~2-4 hours)\" and \"free tier is ~2-4 hours total runtime\""
+    },
+    {
+      "text": "Shows recovery: new session → re-upload → resume from checkpoints",
+      "passed": true,
+      "evidence": "\"# Create a new session\ncolab new --gpu T4 --session my-training-v2\n\n# Re-upload your code and your last checkpoint\ncolab upload train.py train.py\ncolab upload checkpoints/best.pt checkpoints/best.pt\n\n# Re-launch with --resume flag\""
+    },
+    {
+      "text": "Advises downloading checkpoints before session dies: colab download checkpoints/",
+      "passed": false,
+      "evidence": "The output advises downloading checkpoints generally (\"Download checkpoints periodically during training\") but does not show the specific command `colab download checkpoints/`."
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 1,
+    "total": 6,
+    "pass_rate": 0.83
+  }
+}

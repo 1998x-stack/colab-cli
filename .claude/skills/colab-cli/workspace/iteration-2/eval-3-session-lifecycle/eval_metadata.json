@@ -1,0 +1,13 @@
+{
+  "eval_id": 3,
+  "eval_name": "session-lifecycle",
+  "prompt": "My colab session was working fine an hour ago but now 'colab exec' gives SSL errors. Is my training dead? How do I recover without losing progress? PID was 903 and checkpoints were in /content/checkpoints/.",
+  "assertions": [
+    {"text": "Explains SSL errors are often transient, not necessarily fatal", "passed": false, "evidence": ""},
+    {"text": "Shows how to verify session with colab sessions / colab status", "passed": false, "evidence": ""},
+    {"text": "Mentions the background PID (903) may still be alive despite SSL errors", "passed": false, "evidence": ""},
+    {"text": "Mentions ~2-4 hour session lifetime and silent termination", "passed": false, "evidence": ""},
+    {"text": "Shows recovery: new session → re-upload → resume from checkpoints", "passed": false, "evidence": ""},
+    {"text": "Advises downloading checkpoints before session dies: colab download", "passed": false, "evidence": ""}
+  ]
+}

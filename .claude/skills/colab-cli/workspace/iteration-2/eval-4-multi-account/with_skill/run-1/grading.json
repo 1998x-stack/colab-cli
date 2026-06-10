@@ -1,0 +1,30 @@
+{
+  "expectations": [
+    {
+      "text": "Explains free tier limits to 1 GPU session per account",
+      "passed": true,
+      "evidence": "Line 5: \"Google Colab's free tier permits only one GPU session per account at a time\""
+    },
+    {
+      "text": "Mentions multi-account setup (cb, cc aliases or separate HOME directories) as solution",
+      "passed": true,
+      "evidence": "Lines 9-15: Table of aliases (colab, cb, cc) with accounts and explanation of isolated HOME directories"
+    },
+    {
+      "text": "Shows concrete example using cb or cc to provision a second GPU session",
+      "passed": true,
+      "evidence": "Line 24: `cb new --gpu T4 -s nlp-training`"
+    },
+    {
+      "text": "Mentions sequential execution as fallback alternative",
+      "passed": false,
+      "evidence": "No mention of sequential execution (create \u2192 train \u2192 download \u2192 stop, repeat) anywhere in the output"
+    }
+  ],
+  "summary": {
+    "pass_rate": 0.75,
+    "passed": 3,
+    "failed": 1,
+    "total": 4
+  }
+}

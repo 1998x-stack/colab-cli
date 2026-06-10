@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "Explains SSL errors are often transient, not necessarily fatal",
+      "passed": true,
+      "evidence": "\"SSL errors with `colab exec` are a known transient issue documented under gotcha #5. The error signature (`SSLError: UNEXPECTED_EOF_WHILE_READING`) happens intermittently and does **not** mean the session or your background process (PID 903) has been destroyed.\""
+    },
+    {
+      "text": "Shows how to verify session with colab sessions / colab status",
+      "passed": true,
+      "evidence": "\"Run both commands — the first refreshes the local session cache from the server, the second shows current session status: `colab sessions && colab status`\""
+    },
+    {
+      "text": "Mentions the background PID (903) may still be alive despite SSL errors",
+      "passed": true,
+      "evidence": "\"does **not** mean the session or your background process (PID 903) has been destroyed\" and \"your training process (PID 903) is likely still running\""
+    },
+    {
+      "text": "Mentions ~2-4 hour session lifetime and silent termination",
+      "passed": true,
+      "evidence": "\"Free-tier Colab sessions auto-terminate after ~2-4 hours of total runtime with no warning.\""
+    },
+    {
+      "text": "Shows recovery: new session → re-upload → resume from checkpoints",
+      "passed": true,
+      "evidence": "Step 3 shows: `colab new --gpu T4 --session my-training-2` then re-upload of scripts/training files then `colab exec -f launch.py --timeout 120` to resume."
+    },
+    {
+      "text": "Advises downloading checkpoints before session dies: colab download checkpoints/",
+      "passed": true,
+      "evidence": "\"Download checkpoints **during** the run, not at the end. Use the monitoring loop pattern: `colab download checkpoints/best.pt`\""
+    }
+  ],
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  }
+}

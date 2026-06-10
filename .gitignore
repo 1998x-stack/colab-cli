@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# Claude Code local state
+.claude/scheduled_tasks.json
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+
+# Cache directories
+.huggingface/
+.kaggle/
+
+# External cloned repos (large)
+cuda-repos/
+google_workspace_mcp/
+
+# Proxy config (may contain credentials)
+proxy.yaml
+
+# Training artifacts
+*.pt
+*.pth
+*.safetensors
+*.tar.gz
+*.pkl
+checkpoints/
+logs/
+output/
+output-v2/
+output-v3/
+output-v4/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

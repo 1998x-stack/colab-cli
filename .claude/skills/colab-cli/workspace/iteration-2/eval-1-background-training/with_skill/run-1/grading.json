@@ -1,0 +1,55 @@
+{
+  "expectations": [
+    {
+      "text": "Tells user to create a GPU session with colab new --gpu",
+      "passed": true,
+      "evidence": "Line 10: `colab new --gpu T4 -s training`"
+    },
+    {
+      "text": "Tells user to upload script files with colab upload",
+      "passed": true,
+      "evidence": "Line 20: `colab upload ~/ml/train_cifar.py /content/train_cifar.py`"
+    },
+    {
+      "text": "Uses start_new_session or subprocess.Popen pattern for background execution",
+      "passed": true,
+      "evidence": "Line 44: `start_new_session=True` in subprocess.Popen call"
+    },
+    {
+      "text": "Mentions PYTHONUNBUFFERED or python -u for log output",
+      "passed": true,
+      "evidence": "Line 41: `PYTHONUNBUFFERED = \"1\"`, Line 45: `-u` flag"
+    },
+    {
+      "text": "Mentions installing torch, torchvision, wandb dependencies",
+      "passed": true,
+      "evidence": "Line 34: `DEPS = [\"torch\", \"torchvision\", \"wandb\"]`"
+    },
+    {
+      "text": "Mentions using relative paths with colab exec -f",
+      "passed": true,
+      "evidence": "Line 123: \"`colab exec -f` reads local files... It does not run files already on the VM\""
+    },
+    {
+      "text": "Warns about ~2-4 hour session lifetime",
+      "passed": true,
+      "evidence": "Line 121: \"Free GPU sessions auto-terminate after ~2-4 hours total\""
+    },
+    {
+      "text": "Mentions colab download to retrieve checkpoints",
+      "passed": true,
+      "evidence": "Line 110: `colab download /content/checkpoints.tar.gz ./checkpoints_epoch50.tar.gz`"
+    },
+    {
+      "text": "Shows how to check on running training (pgrep, log tail, or check_progress script)",
+      "passed": true,
+      "evidence": "Lines 78-94: check_progress.py with pgrep, tail -20, ls -lh checkpoints"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 9,
+    "failed": 0,
+    "total": 9
+  }
+}

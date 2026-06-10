@@ -1,0 +1,30 @@
+{
+  "expectations": [
+    {
+      "text": "Explains free tier limits to 1 GPU session per account",
+      "passed": true,
+      "evidence": "Line 3: \"limits you to one GPU session per Google account\""
+    },
+    {
+      "text": "Mentions multi-account setup (cb, cc aliases or separate HOME directories) as solution",
+      "passed": true,
+      "evidence": "Lines 7-14: Table of accounts with aliases and HOME directories"
+    },
+    {
+      "text": "Shows concrete example using cb or cc to provision a second GPU session",
+      "passed": true,
+      "evidence": "Line 18: `cb new --gpu T4 -s nlp-training`"
+    },
+    {
+      "text": "Mentions sequential execution as fallback alternative",
+      "passed": true,
+      "evidence": "Lines 49-55: \"Alternative approach: Sequential execution\" with step-by-step"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 4,
+    "failed": 0,
+    "total": 4
+  }
+}

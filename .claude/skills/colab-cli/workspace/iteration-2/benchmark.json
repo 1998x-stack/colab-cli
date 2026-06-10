@@ -1,0 +1,517 @@
+{
+  "metadata": {
+    "skill_name": "colab-cli",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-06-10T14:25:15Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "old_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 44.6,
+        "tokens": 30366,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Tells user to create a GPU session with colab new --gpu",
+          "passed": true,
+          "evidence": "Line 12: `colab new --gpu T4 -s training`"
+        },
+        {
+          "text": "Tells user to upload script files with colab upload",
+          "passed": true,
+          "evidence": "Line 22: `colab upload ~/ml/train_cifar.py /content/train_cifar.py`"
+        },
+        {
+          "text": "Uses start_new_session or subprocess.Popen pattern for background execution",
+          "passed": true,
+          "evidence": "Line 56: `start_new_session=True` in subprocess.Popen call"
+        },
+        {
+          "text": "Mentions PYTHONUNBUFFERED or python -u for log output",
+          "passed": true,
+          "evidence": "Line 50: `PYTHONUNBUFFERED = \"1\"`, Line 54: `-u` flag"
+        },
+        {
+          "text": "Mentions installing torch, torchvision, wandb dependencies",
+          "passed": true,
+          "evidence": "Line 40: `DEPS = [\"torch\", \"torchvision\", \"wandb\"]`"
+        },
+        {
+          "text": "Mentions using relative paths with colab exec -f",
+          "passed": true,
+          "evidence": "Line 72: \"`colab exec -f` only takes a relative path (relative to your local CWD)\""
+        },
+        {
+          "text": "Warns about ~2-4 hour session lifetime",
+          "passed": true,
+          "evidence": "Line 5: \"Free-tier Colab sessions last ~2-4 hours\""
+        },
+        {
+          "text": "Mentions colab download to retrieve checkpoints",
+          "passed": true,
+          "evidence": "Lines 121-131: multiple `colab download` commands shown"
+        },
+        {
+          "text": "Shows how to check on running training (pgrep, log tail, or check_progress script)",
+          "passed": true,
+          "evidence": "Lines 103-112: pgrep, tail log, list checkpoints via inline echo commands"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "old_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 17.8,
+        "tokens": 19853,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explains that colab exec -f reads local files (relative to CWD), not remote VM files",
+          "passed": true,
+          "evidence": "Lines 5-7: \"colab exec -f reads a local file from the machine you're running the command on. It does not read a file from the remote Colab VM.\""
+        },
+        {
+          "text": "Shows correct command: colab exec -f script.py (without /content/ prefix)",
+          "passed": true,
+          "evidence": "Line 22: `colab exec -f script.py --timeout 120`"
+        },
+        {
+          "text": "Mentions that working directory on the VM is /content/",
+          "passed": false,
+          "evidence": "References /content/script.py as the VM path but never explicitly states the VM working directory is /content/"
+        },
+        {
+          "text": "Mentions stdin pipe as alternative: echo 'code' | colab exec",
+          "passed": false,
+          "evidence": "No mention of stdin pipe or echo '...' | colab exec anywhere in the output"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "old_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 37.5,
+        "tokens": 22782,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explains SSL errors are often transient, not necessarily fatal",
+          "passed": true,
+          "evidence": "Line 5: \"Not necessarily. SSL errors from colab exec are often a proxy/network issue, not a sign that the session or your background process (PID 903) has died.\""
+        },
+        {
+          "text": "Shows how to verify session with colab sessions / colab status",
+          "passed": true,
+          "evidence": "Lines 28-32: `colab sessions` and `colab status -s training` with explanation"
+        },
+        {
+          "text": "Mentions the background PID (903) may still be alive despite SSL errors",
+          "passed": true,
+          "evidence": "Line 5: background process not dead; Line 32: \"training process (PID 903) is likely still alive\""
+        },
+        {
+          "text": "Mentions ~2-4 hour session lifetime and silent termination",
+          "passed": true,
+          "evidence": "Line 67: \"Free tier GPU sessions auto-terminate after ~2-4 hours\""
+        },
+        {
+          "text": "Shows recovery: new session \u2192 re-upload \u2192 resume from checkpoints",
+          "passed": true,
+          "evidence": "Lines 92-96: recovery steps for dead session \u2014 new session, re-upload, resume"
+        },
+        {
+          "text": "Advises downloading checkpoints before session dies: colab download",
+          "passed": true,
+          "evidence": "Lines 85-87: `colab download /content/ckpts.tar.gz .`"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "old_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 24.1,
+        "tokens": 21109,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explains free tier limits to 1 GPU session per account",
+          "passed": true,
+          "evidence": "Line 3: \"limits you to one GPU session per Google account\""
+        },
+        {
+          "text": "Mentions multi-account setup (cb, cc aliases or separate HOME directories) as solution",
+          "passed": true,
+          "evidence": "Lines 7-14: Table of accounts with aliases and HOME directories"
+        },
+        {
+          "text": "Shows concrete example using cb or cc to provision a second GPU session",
+          "passed": true,
+          "evidence": "Line 18: `cb new --gpu T4 -s nlp-training`"
+        },
+        {
+          "text": "Mentions sequential execution as fallback alternative",
+          "passed": true,
+          "evidence": "Lines 49-55: \"Alternative approach: Sequential execution\" with step-by-step"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "old_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 27.2,
+        "tokens": 26102,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Shows using stdin pipe: echo '...' | colab exec for inline code",
+          "passed": true,
+          "evidence": "Line 6: `echo 'import torch; ...' | colab exec --timeout 15`"
+        },
+        {
+          "text": "Mentions there is no -c flag for colab exec",
+          "passed": true,
+          "evidence": "Line 3: \"colab exec has no -c flag\""
+        },
+        {
+          "text": "Shows checking torch.cuda.is_available() and get_device_name()",
+          "passed": true,
+          "evidence": "Line 6: `torch.cuda.is_available()` and `torch.cuda.get_device_name(0)`"
+        },
+        {
+          "text": "Notes this approach avoids creating any files",
+          "passed": true,
+          "evidence": "Line 22: \"No files are created or uploaded -- the code is piped directly to the kernel.\""
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 29.8,
+        "tokens": 21522,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Tells user to create a GPU session with colab new --gpu",
+          "passed": true,
+          "evidence": "Line 10: `colab new --gpu T4 -s training`"
+        },
+        {
+          "text": "Tells user to upload script files with colab upload",
+          "passed": true,
+          "evidence": "Line 20: `colab upload ~/ml/train_cifar.py /content/train_cifar.py`"
+        },
+        {
+          "text": "Uses start_new_session or subprocess.Popen pattern for background execution",
+          "passed": true,
+          "evidence": "Line 44: `start_new_session=True` in subprocess.Popen call"
+        },
+        {
+          "text": "Mentions PYTHONUNBUFFERED or python -u for log output",
+          "passed": true,
+          "evidence": "Line 41: `PYTHONUNBUFFERED = \"1\"`, Line 45: `-u` flag"
+        },
+        {
+          "text": "Mentions installing torch, torchvision, wandb dependencies",
+          "passed": true,
+          "evidence": "Line 34: `DEPS = [\"torch\", \"torchvision\", \"wandb\"]`"
+        },
+        {
+          "text": "Mentions using relative paths with colab exec -f",
+          "passed": true,
+          "evidence": "Line 123: \"`colab exec -f` reads local files... It does not run files already on the VM\""
+        },
+        {
+          "text": "Warns about ~2-4 hour session lifetime",
+          "passed": true,
+          "evidence": "Line 121: \"Free GPU sessions auto-terminate after ~2-4 hours total\""
+        },
+        {
+          "text": "Mentions colab download to retrieve checkpoints",
+          "passed": true,
+          "evidence": "Line 110: `colab download /content/checkpoints.tar.gz ./checkpoints_epoch50.tar.gz`"
+        },
+        {
+          "text": "Shows how to check on running training (pgrep, log tail, or check_progress script)",
+          "passed": true,
+          "evidence": "Lines 78-94: check_progress.py with pgrep, tail -20, ls -lh checkpoints"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 24.1,
+        "tokens": 26177,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explains that colab exec -f reads local files (relative to CWD), not remote VM files",
+          "passed": true,
+          "evidence": "Lines 5-7: \"colab exec -f reads a Python file from your local filesystem and sends it to the VM for execution. It does not run files that already exist on the VM.\""
+        },
+        {
+          "text": "Shows correct command: colab exec -f script.py (without /content/ prefix)",
+          "passed": true,
+          "evidence": "Line 45: `colab exec -f script.py`"
+        },
+        {
+          "text": "Mentions that working directory on the VM is /content/",
+          "passed": true,
+          "evidence": "Lines 7, 13, 17, 30: multiple references to /content/ as the VM working directory"
+        },
+        {
+          "text": "Mentions stdin pipe as alternative: echo 'code' | colab exec",
+          "passed": true,
+          "evidence": "Line 34: `echo 'exec(open(\"/content/script.py\").read())' | colab exec`"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 42.7,
+        "tokens": 30793,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explains SSL errors are often transient, not necessarily fatal",
+          "passed": true,
+          "evidence": "Line 5: \"SSL errors... are a documented transient issue. They happen intermittently and do not inherently mean the Colab session or your background process (PID 903) was destroyed.\""
+        },
+        {
+          "text": "Shows how to verify session with colab sessions / colab status",
+          "passed": true,
+          "evidence": "Line 16: `colab sessions && colab status`"
+        },
+        {
+          "text": "Mentions the background PID (903) may still be alive despite SSL errors",
+          "passed": true,
+          "evidence": "Lines 18-19: \"Your training (PID 903) is likely still running if it was launched with start_new_session=True\""
+        },
+        {
+          "text": "Mentions ~2-4 hour session lifetime and silent termination",
+          "passed": true,
+          "evidence": "Line 8: \"~2-4 hour lifetime\". Also mentions sessions can die in <5 min after connection errors"
+        },
+        {
+          "text": "Shows recovery: new session \u2192 re-upload \u2192 resume from checkpoints",
+          "passed": true,
+          "evidence": "Lines 41-55: Full recovery steps \u2014 colab new, re-upload artifacts, restore checkpoints, re-launch"
+        },
+        {
+          "text": "Advises downloading checkpoints before session dies: colab download",
+          "passed": true,
+          "evidence": "Lines 73-78: \"Download checkpoints during the run, not at the end\" with monitoring loop showing colab download"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 23.8,
+        "tokens": 21066,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Explains free tier limits to 1 GPU session per account",
+          "passed": true,
+          "evidence": "Line 5: \"Google Colab's free tier permits only one GPU session per account at a time\""
+        },
+        {
+          "text": "Mentions multi-account setup (cb, cc aliases or separate HOME directories) as solution",
+          "passed": true,
+          "evidence": "Lines 9-15: Table of aliases (colab, cb, cc) with accounts and explanation of isolated HOME directories"
+        },
+        {
+          "text": "Shows concrete example using cb or cc to provision a second GPU session",
+          "passed": true,
+          "evidence": "Line 24: `cb new --gpu T4 -s nlp-training`"
+        },
+        {
+          "text": "Mentions sequential execution as fallback alternative",
+          "passed": false,
+          "evidence": "No mention of sequential execution (create \u2192 train \u2192 download \u2192 stop, repeat) anywhere in the output"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 27.7,
+        "tokens": 26542,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Shows using stdin pipe: echo '...' | colab exec for inline code",
+          "passed": true,
+          "evidence": "Lines 15, 23, 31: multiple `echo '...' | colab exec` examples"
+        },
+        {
+          "text": "Mentions there is no -c flag for colab exec",
+          "passed": true,
+          "evidence": "Line 4: \"colab exec has no -c flag (the skill explicitly calls this out as gotcha #12)\""
+        },
+        {
+          "text": "Shows checking torch.cuda.is_available() and get_device_name()",
+          "passed": true,
+          "evidence": "Line 31: `torch.cuda.is_available(), torch.cuda.get_device_name(0)`"
+        },
+        {
+          "text": "Notes this approach avoids creating any files",
+          "passed": false,
+          "evidence": "The stdin approach inherently avoids files, but the output never explicitly states this. The user specifically asked for no files/upload \u2014 the answer should confirm this property."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "old_skill": {
+      "pass_rate": {
+        "mean": 0.9,
+        "stddev": 0.2236,
+        "min": 0.5,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 30.24,
+        "stddev": 10.7309,
+        "min": 17.8,
+        "max": 44.6
+      },
+      "tokens": {
+        "mean": 24042.4,
+        "stddev": 4241.8859,
+        "min": 19853,
+        "max": 30366
+      }
+    },
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9,
+        "stddev": 0.1369,
+        "min": 0.75,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 29.62,
+        "stddev": 7.7322,
+        "min": 23.8,
+        "max": 42.7
+      },
+      "tokens": {
+        "mean": 25220.0,
+        "stddev": 4020.3477,
+        "min": 21066,
+        "max": 30793
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "+0.6",
+      "tokens": "-1178"
+    }
+  },
+  "notes": []
+}

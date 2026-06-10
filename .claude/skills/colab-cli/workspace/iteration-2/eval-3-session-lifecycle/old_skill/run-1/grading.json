@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "Explains SSL errors are often transient, not necessarily fatal",
+      "passed": true,
+      "evidence": "Line 5: \"Not necessarily. SSL errors from colab exec are often a proxy/network issue, not a sign that the session or your background process (PID 903) has died.\""
+    },
+    {
+      "text": "Shows how to verify session with colab sessions / colab status",
+      "passed": true,
+      "evidence": "Lines 28-32: `colab sessions` and `colab status -s training` with explanation"
+    },
+    {
+      "text": "Mentions the background PID (903) may still be alive despite SSL errors",
+      "passed": true,
+      "evidence": "Line 5: background process not dead; Line 32: \"training process (PID 903) is likely still alive\""
+    },
+    {
+      "text": "Mentions ~2-4 hour session lifetime and silent termination",
+      "passed": true,
+      "evidence": "Line 67: \"Free tier GPU sessions auto-terminate after ~2-4 hours\""
+    },
+    {
+      "text": "Shows recovery: new session \u2192 re-upload \u2192 resume from checkpoints",
+      "passed": true,
+      "evidence": "Lines 92-96: recovery steps for dead session \u2014 new session, re-upload, resume"
+    },
+    {
+      "text": "Advises downloading checkpoints before session dies: colab download",
+      "passed": true,
+      "evidence": "Lines 85-87: `colab download /content/ckpts.tar.gz .`"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 6,
+    "failed": 0,
+    "total": 6
+  }
+}

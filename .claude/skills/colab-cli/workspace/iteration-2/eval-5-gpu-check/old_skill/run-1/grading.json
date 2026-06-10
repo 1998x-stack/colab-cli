@@ -1,0 +1,30 @@
+{
+  "expectations": [
+    {
+      "text": "Shows using stdin pipe: echo '...' | colab exec for inline code",
+      "passed": true,
+      "evidence": "Line 6: `echo 'import torch; ...' | colab exec --timeout 15`"
+    },
+    {
+      "text": "Mentions there is no -c flag for colab exec",
+      "passed": true,
+      "evidence": "Line 3: \"colab exec has no -c flag\""
+    },
+    {
+      "text": "Shows checking torch.cuda.is_available() and get_device_name()",
+      "passed": true,
+      "evidence": "Line 6: `torch.cuda.is_available()` and `torch.cuda.get_device_name(0)`"
+    },
+    {
+      "text": "Notes this approach avoids creating any files",
+      "passed": true,
+      "evidence": "Line 22: \"No files are created or uploaded -- the code is piped directly to the kernel.\""
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 4,
+    "failed": 0,
+    "total": 4
+  }
+}

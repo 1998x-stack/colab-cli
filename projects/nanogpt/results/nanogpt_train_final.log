@@ -1,0 +1,107 @@
+Downloading Tiny Shakespeare dataset...
+Dataset length: 1,115,394 characters
+Vocab size: 65
+Train tokens: 1,003,854, Val tokens: 111,540
+Device: cuda, dtype: bfloat16
+max_iters=500, batch_size=64, block_size=256
+number of parameters: 10.75M
+num decayed parameter tensors: 26, with 10,740,096 parameters
+num non-decayed parameter tensors: 13, with 4,992 parameters
+using fused AdamW: True
+Compiling model... (may take ~30s)
+
+=== Starting training ===
+
+W0610 15:27:09.286000 2109 torch/_inductor/utils.py:1731] [0/0] Not enough SMs to use max_autotune_gemm mode
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py:2941: UserWarning: Tesla T4 does not support bfloat16 compilation natively, skipping
+  warnings.warn(
+step     0: train loss 4.2882, val loss 4.2819  [38324ms]
+  -> saved checkpoint (best val loss: 4.2819)
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py:2941: UserWarning: Tesla T4 does not support bfloat16 compilation natively, skipping
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py:2941: UserWarning: Tesla T4 does not support bfloat16 compilation natively, skipping
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py:2941: UserWarning: Tesla T4 does not support bfloat16 compilation natively, skipping
+  warnings.warn(
+iter     0: loss 4.2653, dt 3884.78ms, mfu -100.00%
+iter    10: loss 2.9894, dt 521.86ms, mfu 0.71%
+iter    20: loss 2.6663, dt 527.05ms, mfu 0.71%
+iter    30: loss 2.5679, dt 535.33ms, mfu 0.71%
+iter    40: loss 2.5353, dt 545.48ms, mfu 0.71%
+iter    50: loss 2.5150, dt 552.89ms, mfu 0.71%
+iter    60: loss 2.4924, dt 559.39ms, mfu 0.70%
+iter    70: loss 2.4655, dt 567.78ms, mfu 0.70%
+iter    80: loss 2.4609, dt 587.61ms, mfu 0.69%
+iter    90: loss 2.4476, dt 603.10ms, mfu 0.68%
+step   100: train loss 2.4153, val loss 2.4485  [32827ms]
+  -> saved checkpoint (best val loss: 2.4485)
+iter   100: loss 2.4507, dt 44.20ms, mfu 1.46%
+iter   110: loss 2.4369, dt 554.60ms, mfu 1.38%
+iter   120: loss 2.4398, dt 551.59ms, mfu 1.31%
+iter   130: loss 2.4021, dt 555.71ms, mfu 1.25%
+iter   140: loss 2.3893, dt 564.89ms, mfu 1.19%
+iter   150: loss 2.3668, dt 566.32ms, mfu 1.13%
+iter   160: loss 2.3495, dt 565.75ms, mfu 1.09%
+iter   170: loss 2.2842, dt 566.82ms, mfu 1.04%
+iter   180: loss 2.2477, dt 571.24ms, mfu 1.00%
+iter   190: loss 2.2014, dt 573.71ms, mfu 0.97%
+step   200: train loss 2.0898, val loss 2.1610  [32441ms]
+  -> saved checkpoint (best val loss: 2.1610)
+iter   200: loss 2.1546, dt 28.50ms, mfu 2.18%
+iter   210: loss 2.1331, dt 565.79ms, mfu 2.03%
+iter   220: loss 2.0760, dt 565.66ms, mfu 1.89%
+iter   230: loss 2.0716, dt 563.95ms, mfu 1.77%
+iter   240: loss 2.0286, dt 566.10ms, mfu 1.66%
+iter   250: loss 2.0203, dt 564.55ms, mfu 1.56%
+iter   260: loss 1.9936, dt 567.42ms, mfu 1.47%
+iter   270: loss 1.9582, dt 565.72ms, mfu 1.39%
+iter   280: loss 1.9422, dt 567.78ms, mfu 1.31%
+iter   290: loss 1.9165, dt 567.09ms, mfu 1.25%
+step   300: train loss 1.8066, val loss 1.9652  [32498ms]
+  -> saved checkpoint (best val loss: 1.9652)
+iter   300: loss 1.8777, dt 29.57ms, mfu 2.38%
+iter   310: loss 1.8742, dt 564.08ms, mfu 2.21%
+iter   320: loss 1.8553, dt 566.25ms, mfu 2.06%
+iter   330: loss 1.8744, dt 565.29ms, mfu 1.92%
+iter   340: loss 1.8253, dt 566.08ms, mfu 1.79%
+iter   350: loss 1.8249, dt 567.09ms, mfu 1.68%
+iter   360: loss 1.7968, dt 568.53ms, mfu 1.57%
+iter   370: loss 1.8060, dt 565.87ms, mfu 1.48%
+iter   380: loss 1.7968, dt 565.31ms, mfu 1.40%
+iter   390: loss 1.7630, dt 565.80ms, mfu 1.33%
+step   400: train loss 1.6645, val loss 1.8253  [32357ms]
+  -> saved checkpoint (best val loss: 1.8253)
+iter   400: loss 1.7473, dt 41.90ms, mfu 2.08%
+iter   410: loss 1.7335, dt 567.72ms, mfu 1.94%
+iter   420: loss 1.7615, dt 567.37ms, mfu 1.81%
+iter   430: loss 1.7354, dt 567.53ms, mfu 1.70%
+iter   440: loss 1.7074, dt 566.40ms, mfu 1.59%
+iter   450: loss 1.7159, dt 565.69ms, mfu 1.50%
+iter   460: loss 1.6662, dt 565.00ms, mfu 1.42%
+iter   470: loss 1.7287, dt 565.73ms, mfu 1.34%
+iter   480: loss 1.6927, dt 564.36ms, mfu 1.27%
+iter   490: loss 1.6816, dt 564.36ms, mfu 1.21%
+step   500: train loss 1.6019, val loss 1.7868  [32401ms]
+  -> saved checkpoint (best val loss: 1.7868)
+iter   500: loss 1.6886, dt 31.35ms, mfu 2.28%
+
+=== Training complete! Best val loss: 1.7868 ===
+
+Traceback (most recent call last):
+  File "/content/train_nanogpt.py", line 401, in <module>
+    json.dump(metrics, f)
+  File "/usr/lib/python3.12/json/__init__.py", line 179, in dump
+    for chunk in iterable:
+                 ^^^^^^^^
+  File "/usr/lib/python3.12/json/encoder.py", line 432, in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+  File "/usr/lib/python3.12/json/encoder.py", line 406, in _iterencode_dict
+    yield from chunks
+  File "/usr/lib/python3.12/json/encoder.py", line 326, in _iterencode_list
+    yield from chunks
+  File "/usr/lib/python3.12/json/encoder.py", line 439, in _iterencode
+    o = _default(o)
+        ^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+TypeError: Object of type Tensor is not JSON serializable

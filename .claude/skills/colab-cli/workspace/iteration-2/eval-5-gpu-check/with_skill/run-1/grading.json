@@ -1,0 +1,30 @@
+{
+  "expectations": [
+    {
+      "text": "Shows using stdin pipe: echo '...' | colab exec for inline code",
+      "passed": true,
+      "evidence": "Lines 15, 23, 31: multiple `echo '...' | colab exec` examples"
+    },
+    {
+      "text": "Mentions there is no -c flag for colab exec",
+      "passed": true,
+      "evidence": "Line 4: \"colab exec has no -c flag (the skill explicitly calls this out as gotcha #12)\""
+    },
+    {
+      "text": "Shows checking torch.cuda.is_available() and get_device_name()",
+      "passed": true,
+      "evidence": "Line 31: `torch.cuda.is_available(), torch.cuda.get_device_name(0)`"
+    },
+    {
+      "text": "Notes this approach avoids creating any files",
+      "passed": false,
+      "evidence": "The stdin approach inherently avoids files, but the output never explicitly states this. The user specifically asked for no files/upload \u2014 the answer should confirm this property."
+    }
+  ],
+  "summary": {
+    "pass_rate": 0.75,
+    "passed": 3,
+    "failed": 1,
+    "total": 4
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "expectations": [
+    {
+      "text": "Explains that colab exec -f requires relative paths, not absolute",
+      "passed": true,
+      "evidence": "\"`colab exec -f` requires a **relative path**, not an absolute one.\""
+    },
+    {
+      "text": "Shows correct command: colab exec -f script.py (without /content/ prefix)",
+      "passed": true,
+      "evidence": "```bash\ncolab exec -f script.py\n```"
+    },
+    {
+      "text": "Mentions that working directory is /content/",
+      "passed": true,
+      "evidence": "\"The working directory on the Colab VM is `/content/`\""
+    },
+    {
+      "text": "Mentions stdin pipe as alternative: echo 'code' | colab exec",
+      "passed": false,
+      "evidence": "No mention of stdin pipe or 'echo ... | colab exec' anywhere in the output."
+    }
+  ],
+  "summary": {"passed": 3, "failed": 1, "total": 4, "pass_rate": 0.75}
+}

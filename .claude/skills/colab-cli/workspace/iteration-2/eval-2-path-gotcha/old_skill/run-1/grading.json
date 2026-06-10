@@ -1,0 +1,30 @@
+{
+  "expectations": [
+    {
+      "text": "Explains that colab exec -f reads local files (relative to CWD), not remote VM files",
+      "passed": true,
+      "evidence": "Lines 5-7: \"colab exec -f reads a local file from the machine you're running the command on. It does not read a file from the remote Colab VM.\""
+    },
+    {
+      "text": "Shows correct command: colab exec -f script.py (without /content/ prefix)",
+      "passed": true,
+      "evidence": "Line 22: `colab exec -f script.py --timeout 120`"
+    },
+    {
+      "text": "Mentions that working directory on the VM is /content/",
+      "passed": false,
+      "evidence": "References /content/script.py as the VM path but never explicitly states the VM working directory is /content/"
+    },
+    {
+      "text": "Mentions stdin pipe as alternative: echo 'code' | colab exec",
+      "passed": false,
+      "evidence": "No mention of stdin pipe or echo '...' | colab exec anywhere in the output"
+    }
+  ],
+  "summary": {
+    "pass_rate": 0.5,
+    "passed": 2,
+    "failed": 2,
+    "total": 4
+  }
+}

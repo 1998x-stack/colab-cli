@@ -1,0 +1,11 @@
+{
+  "eval_id": 4,
+  "eval_name": "multi-account",
+  "prompt": "i need to run two completely separate GPU training jobs at the same time — one for image classification and one for nlp fine-tuning. i created the first session with 'colab new --gpu T4 -s vision-training' but when i try 'colab new --gpu T4 -s nlp-training' i get 'TooManyAssignmentsError: 412 Precondition Failed'. how can i run both in parallel?",
+  "assertions": [
+    {"text": "Explains free tier limits to 1 GPU session per account", "passed": false, "evidence": ""},
+    {"text": "Mentions multi-account setup (cb, cc aliases or separate HOME directories) as solution", "passed": false, "evidence": ""},
+    {"text": "Shows concrete example using cb or cc to provision a second GPU session", "passed": false, "evidence": ""},
+    {"text": "Mentions sequential execution as fallback alternative", "passed": false, "evidence": ""}
+  ]
+}

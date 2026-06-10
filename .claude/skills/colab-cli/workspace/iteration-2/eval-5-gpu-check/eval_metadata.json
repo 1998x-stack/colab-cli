@@ -1,0 +1,11 @@
+{
+  "eval_id": 5,
+  "eval_name": "gpu-check",
+  "prompt": "just created a colab session with --gpu T4. how do i quickly check if it actually has a GPU and what kind it is? don't want to create any files or upload anything, just a quick one-liner.",
+  "assertions": [
+    {"text": "Shows using stdin pipe: echo '...' | colab exec for inline code", "passed": false, "evidence": ""},
+    {"text": "Mentions there is no -c flag for colab exec", "passed": false, "evidence": ""},
+    {"text": "Shows checking torch.cuda.is_available() and get_device_name()", "passed": false, "evidence": ""},
+    {"text": "Notes this approach avoids creating any files", "passed": false, "evidence": ""}
+  ]
+}

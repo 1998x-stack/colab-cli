@@ -1,0 +1,35 @@
+{
+  "skill_name": "colab-cli",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a Python training script at ~/ml/train_cifar.py that takes about 3 hours. I want to run it on a Colab GPU in the background so it survives if my laptop goes to sleep. What's the full setup? The script needs torch, torchvision, and wandb. It saves checkpoints to ./checkpoints/ every 10 epochs.",
+      "expected_output": "Instructions covering: create GPU session, upload script + launcher, use nohup/start_new_session pattern, install deps, check progress, and download checkpoints. Should mention session lifetime (~2-4h) and suggest checkpoint downloads.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I uploaded my script to colab with 'colab upload script.py /content/script.py' and it said 'Uploaded' but when I run 'colab exec -f /content/script.py' I get FileNotFoundError. What's wrong?",
+      "expected_output": "Identifies that colab exec -f requires paths relative to local CWD (not absolute VM paths). Upload is irrelevant for -f — the file is sent from the local filesystem. Shows correct command: colab exec -f script.py. Should mention stdin pipe as the alternative for quick inline code.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "My colab session was working fine an hour ago but now 'colab exec' gives SSL errors. Is my training dead? How do I recover without losing progress? PID was 903 and checkpoints were in /content/checkpoints/.",
+      "expected_output": "Explains SSL errors are often transient, not necessarily fatal. Shows how to check if session is alive (colab sessions, colab status). If session died: explains how to create new session, re-upload, resume from checkpoints. Mentions downloading checkpoints before session dies and the ~2-4h lifetime.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "i need to run two completely separate GPU training jobs at the same time — one for image classification and one for nlp fine-tuning. i created the first session with 'colab new --gpu T4 -s vision-training' but when i try 'colab new --gpu T4 -s nlp-training' i get 'TooManyAssignmentsError: 412 Precondition Failed'. how can i run both in parallel?",
+      "expected_output": "Explains free tier limits to 1 GPU per account. Points to multi-account setup as the solution (cb, cc aliases). Shows how to use cb/cc to provision a second GPU session on a different account. Alternatively mentions sequential execution (create → train → download → stop, repeat).",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "just created a colab session with --gpu T4. how do i quickly check if it actually has a GPU and what kind it is? don't want to create any files or upload anything, just a quick one-liner.",
+      "expected_output": "Shows using stdin pipe: echo 'import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))' | colab exec --timeout 10. Should mention there's no -c flag for colab exec — stdin pipe is the way to run inline code.",
+      "files": []
+    }
+  ]
+}

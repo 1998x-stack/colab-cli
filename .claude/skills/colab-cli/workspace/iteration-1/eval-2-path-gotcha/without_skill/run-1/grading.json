@@ -1,0 +1,30 @@
+{
+  "expectations": [
+    {
+      "text": "Explains that colab exec -f requires relative paths, not absolute",
+      "passed": true,
+      "evidence": "Lines 7-8: 'colab exec -f /content/script.py -- -f means \"read this file from the local filesystem and execute its contents on the remote runtime.\"' and lines 12-14: 'Run exec with the local path to your script, not the remote path: ... colab exec -f script.py'"
+    },
+    {
+      "text": "Shows correct command: colab exec -f script.py (without /content/ prefix)",
+      "passed": true,
+      "evidence": "Line 14: 'colab exec -f script.py'"
+    },
+    {
+      "text": "Mentions that working directory is /content/",
+      "passed": false,
+      "evidence": "No mention of the working directory being /content/ anywhere in the output"
+    },
+    {
+      "text": "Mentions stdin pipe as alternative: echo 'code' | colab exec",
+      "passed": false,
+      "evidence": "No mention of stdin piping or echo 'code' | colab exec anywhere in the output"
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 2,
+    "total": 4,
+    "pass_rate": 0.5
+  }
+}
