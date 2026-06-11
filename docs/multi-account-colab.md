@@ -1,5 +1,16 @@
 # Colab CLI 多账户使用指南
 
+## 当前机器已配置账户
+
+| Alias | Email | HOME |
+|-------|-------|------|
+| `colab` | hackxie1998@gmail.com | default `~` |
+| `cb` | stefaniehu929@gmail.com | `~/colab-accounts/account-b` |
+| `cc` | xbetterdetermine@gmail.com | `~/colab-accounts/account-c` |
+| `clb` | xieminghack@gmail.com | `~/colab-accounts/account-clb` |
+
+Alias 定义在 `~/.zshrc` 中，proxy env vars 已内置。
+
 ## 结论
 
 **Colab CLI (v0.5.9) 不原生支持多账户 / 多 profile 切换。** 但可以通过变通方案实现。

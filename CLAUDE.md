@@ -2,45 +2,97 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## What this is
+## Codebase map
 
-A workspace for running ML training workloads on Google Colab via the `colab` CLI. The primary project is SAC (Soft Actor-Critic) reinforcement learning on `MountainCarContinuous-v0`.
-
-The `colab` CLI is installed separately as a system tool (`uv tool install google-colab-cli`). The skill at `.claude/skills/colab-cli/SKILL.md` provides detailed usage reference.
-
-## Workflow pattern
-
-```bash
-colab new --gpu T4 -s training          # provision VM
-colab upload launch.py launch.py        # upload launcher script
-colab exec -f launch.py --timeout 120   # start training (detached)
-colab exec -f check_progress.py         # check progress
-colab download /content/checkpoints/ .  # pull artifacts
-colab stop -s training                  # release VM
+```
+projects/
+├── alexnet_imagenette/   # AlexNet faithful reproduction (Imagenette, 10-class)
+│   ├── alexnet.py         # Paper arch + He init, build_alexnet(config) factory
+│   ├── train.py           # ImageFolder pipeline, PCA aug, training, 10-view eval, 4-expt orchestrator, charts
+│   ├── launch.py          # Colab bootstrap: pip install, spawn train+watchdog detached
+│   ├── watchdog.py        # Writes /content/heartbeat.json every 30s
+│   └── check_progress.py  # Reads heartbeat, pgrep, tail log, health alerts
+├── rl-sac/               # SAC on MountainCarContinuous
+├── cnn-cifar10/           # CNN classifier, CIFAR-10
+├── rl-dqn-atari/ nanogpt/ nanochat-colab/ rnn-imdb/ cuda-tutorial/
+├── vllm-compare/ vllm-rag/ ml-tutorial/ autoresearch-t4/
 ```
 
-## Detached training (critical gotchas)
+## Project conventions
 
-- **stdout is buffered in subprocess**: Always set `PYTHONUNBUFFERED=1` in env and use `python -u` when spawning background processes. Without this, log files appear empty even though training runs.
-- **`start_new_session=True`**: Required for `subprocess.Popen` to survive kernel exec timeouts. Without it the child gets SIGHUP when `colab exec` disconnects.
-- **`colab exec -f` takes relative paths only**: Upload to `/content/foo.py` but run with `-f foo.py`. Absolute paths fail with FileNotFoundError.
-- **VMs auto-terminate after ~2-4 hours** on free tier. Checkpoints and downloaded files are the only persistence. `colab run` (without `--keep`) self-cleans regardless.
+- **Dir naming**: `snake_case` for Python imports (`alexnet_imagenette`, not hyphens)
+- **File pattern**: `train.py` + `launch.py` (bootstrap) + `watchdog.py` (heartbeat) + `check_progress.py` (monitor)
+- **Multi-experiment**: Upload `exp_ids.txt` per session; launch.py reads it, passes `--exp_ids` to train.py
+- **Output**: VM `/content/<project>-output/` → download to `projects/<project>/output/`
 
-## Project: SAC MountainCar (`projects/rl-sac/`)
+## Accounts & proxy
 
-| File | Purpose |
-|------|---------|
-| `sac_mountaincar.py` | SAC agent + training loop. 500 episodes, checkpoints to `/content/checkpoints/` every 50 episodes, tensor logging every 10. |
-| `launch.py` | Runs on Colab VM. Installs `gymnasium`, spawns `sac_mountaincar.py` as detached subprocess with unbuffered output to `/content/sac_train.log`. |
-| `check_progress.py` | Runs on Colab VM. Checks if training process is alive (pgrep), tails last 15 log lines, lists checkpoint files with sizes. |
+```bash
+# colab (hackxie1998) — default, proxy via Clash
+colab new --gpu T4 -s <name> && colab exec -s <name> -f script.py --timeout 120
 
-### Training config (defaults in `sac_mountaincar.py`)
+# cc (xbetterdetermine) — often needs no_proxy for WebSocket
+export HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890
+export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
+HOME=~/colab-accounts/account-c colab new --gpu T4 -s <name>
+HOME=~/colab-accounts/account-c colab exec -s <name> -f script.py --timeout 120
 
-LR 3e-4, hidden dim 256, replay buffer 1M, batch 256, start steps 10k, gamma 0.99, tau 0.005, automatic entropy tuning. Saves best model + periodic checkpoints to `/content/checkpoints/`. Resumes from latest checkpoint if one exists.
+# cb (stefaniehu929) — same pattern
 
-## Session hygiene
+# clb (xieminghack) — same pattern
+```
 
-- `colab sessions` lists server-side assignments and prunes stale local entries. Orphans show as `[?]`.
-- `colab status` shows hardware, IDLE/BUSY, and last execution output.
-- Idle VMs burn compute units — always `colab stop` when done.
-- Accelerator availability is tier-gated. `--gpu T4` is most reliable on free tier. TPUs are usually rejected without Pro. Unrecognized `--gpu` values silently fall back to A100 and then fail.
+Only 1 GPU per free account. SSL errors transient — retry before assuming dead.
+
+Free-tier GPU (T4) sessions last ~12-15 min — keep experiments under 10 min total.
+
+## Free-tier reality
+
+**Sessions die in 8-12 min on T4.** Keep experiments under ~4 min each. 20-epoch AlexNet/Imagenette ≈ 3.5 min. Parallelize across accounts. Download immediately on completion.
+
+## Core workflow
+
+```bash
+# 1. Provision + upload + launch
+colab new --gpu T4 -s training
+colab upload *.py /content/
+colab exec -s training -f launch.py --timeout 120   # detaches train subprocess
+
+# 2. Monitor (local cron + VM watchdog)
+CronCreate cron="*/5 * * * *" prompt="Check session..." durable=true recurring=true
+
+# 3. Download + cleanup
+colab download /content/<project>-output.tar.gz projects/<project>/output/
+colab stop -s training
+```
+
+## Detached training (gotchas)
+
+- `PYTHONUNBUFFERED=1` + `python -u` + `start_new_session=True` in subprocess.Popen
+- `colab exec -f` reads LOCAL files (relative paths), sends to VM. No `-c` flag — use stdin pipe.
+- `colab download` needs tar for dirs: `tar -czf /content/out.tar.gz -C /content dir/`
+
+## Architecture gotchas (from AlexNet project)
+
+- **Paper init fails on 128×128 input**: `N(0,0.01)` → loss stuck at ln(10). Use He init + `clip_grad_norm_(5.0)` + LR=0.001
+- **PCA resize**: Must use `TF.resize(img, [H, W])` (fixed size), not `TF.resize(img, H)` (preserves aspect ratio → variable tensor sizes)
+- **HF datasets unreliable on Colab**: `datasets` version too new for older dataset scripts. Prefer `torchvision.datasets.ImageFolder` + direct download
+- **Data aug hurts at low epochs**: Without 90+ epochs, augmentation just slows convergence. "No Data Aug" beats baseline at 20 epochs — expected.
+- **10-view eval**: Paper protocol — 4 corners + center, each flipped. Average softmax across views before computing accuracy.
+
+## Pre-deploy checklist (avoid the #1 bug pattern)
+
+- Run forward pass locally (random tensor) to verify model output shape and no NaN
+- Fit PCA on a sample locally to verify resize → stack doesn't crash
+- Validate data pipeline loads images correctly (check first batch shapes + labels)
+- `grep` the codebase for `load_dataset` — if found, verify HF dataset name still works on Colab's `datasets` version
+
+## Doc protocol
+
+- After writing docs/charts, open them for review. Don't claim "done" without visual verification.
+- Write gotchas.md per-project proactively — don't wait to be asked.
+
+## Multi-session awareness
+
+- User runs parallel Claude Code sessions (41% of messages). Files may change mid-session.
+- Skills live in `.claude/skills/<name>/SKILL.md` — not `.agents/skills/` or other paths.

@@ -71,13 +71,14 @@ The `colab` CLI does not natively support multiple accounts — the OAuth2 token
 
 ### This machine's accounts
 
-Three aliases are configured in `~/.zshrc` (proxy included):
+Four aliases are configured in `~/.zshrc` (proxy included):
 
 | Alias | Account | HOME |
 |-------|---------|------|
 | `colab` | hackxie1998@gmail.com | default `~` |
 | `cb` | stefaniehu929@gmail.com | `~/colab-accounts/account-b` |
 | `cc` | xbetterdetermine@gmail.com | `~/colab-accounts/account-c` |
+| `clb` | xieminghack@gmail.com | `~/colab-accounts/account-clb` |
 
 ```bash
 # Fully interchangeable with the standard colab CLI:
@@ -88,9 +89,12 @@ cb stop -s training
 
 cc new --gpu T4 -s inference
 cc exec -f infer.py
+
+clb new --gpu T4 -s experiment
+clb exec -f run.py --timeout 120
 ```
 
-**Verification:** `colab whoami` / `cb whoami` / `cc whoami` shows which account is active.
+**Verification:** `colab whoami` / `cb whoami` / `cc whoami` / `clb whoami` shows which account is active.
 
 **How it works:** All `colab` state paths derive from `$HOME` (`~/.config/colab-cli/`, `~/.colab-cli-oauth-config.json`). Each alias overrides `HOME` to point at an isolated directory tree. The proxy env vars (`HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`) are baked into each alias so they work from any shell.
 
@@ -98,7 +102,7 @@ cc exec -f infer.py
 
 ## Session lifecycle
 
-Colab sessions are ephemeral. Free-tier GPU sessions last ~2-4 hours before auto-termination. Files and checkpoints survive within a session but vanish when the session ends. Use `colab download` to pull important artifacts back.
+Colab sessions are ephemeral. Free-tier GPU (T4) sessions last ~12-15 minutes before auto-termination. Files and checkpoints survive within a session but vanish when the session ends. Use `colab download` to pull important artifacts back.
 
 Check session health after any connectivity error — transient SSL/connection errors happen and don't necessarily mean the session is dead:
 
@@ -207,7 +211,7 @@ These are field-tested patterns that differ from what you'd expect. Read `refere
 3. **Use detached bootstrap for any workflow with pip install or sustained operations.** `colab exec` WebSocket drops during runs >30s. Spawn a bootstrap via `start_new_session=True` that handles everything — the exec returns immediately. See `references/gotchas.md` for the pattern.
 4. **CUDA version mismatch on Colab T4.** VM has CUDA 12.8 with PyTorch 2.11.0+cu128. Latest vLLM's default wheel requires CUDA 13. Install vLLM with `--extra-index-url https://download.pytorch.org/whl/cu128` (not `--index-url`). See GPU/CUDA section in `references/gotchas.md`.
 5. **stdout is buffered in subprocess.** Set `PYTHONUNBUFFERED=1` and use `python -u` when spawning background jobs, or logs stay empty.
-6. **Only 1 GPU session per account on free tier.** Provisioning a second GPU on the same account raises `TooManyAssignmentsError`. Use the multi-account aliases (`cb`, `cc`) to run parallel GPU sessions across accounts.
+6. **Only 1 GPU session per account on free tier.** Provisioning a second GPU on the same account raises `TooManyAssignmentsError`. Use the multi-account aliases (`cb`, `cc`, `clb`) to run parallel GPU sessions across accounts.
 7. **Sessions get pruned.** After ~2-4h of idle or total runtime, the session disappears. Can happen in <5 min after connection errors. Download checkpoints regularly.
 8. **`colab download` doesn't do directories.** Tar on the VM first: `tar -czf /content/out.tar.gz -C /content dir/`.
 9. **SSL errors are often transient.** Re-check `colab sessions` — background processes may still be alive.
