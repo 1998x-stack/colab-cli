@@ -39,34 +39,55 @@ projects/
 
 ## Accounts & proxy
 
+Colab uses **two separate network paths** (see `docs/websocket-stability-analysis.md`):
+
+- **REST API** (`colab.pa.googleapis.com`): `colab new`, `colab stop`, keep-alive. Uses `requests` — auto-detects `HTTP_PROXY`/`HTTPS_PROXY`.
+- **WebSocket** (`*.prod.colab.dev`): `colab exec`. Uses `websocket-client` — does NOT pass proxy params, can't parse `socks5://` from env vars.
+
+**Recommended config** — REST through SOCKS5 proxy, WebSocket direct:
+
 ```bash
-# colab (hackxie1998) — default, proxy via Clash
+export HTTPS_PROXY=socks5://127.0.0.1:7890
+export HTTP_PROXY=socks5://127.0.0.1:7890
+export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
+```
+
+If WebSocket direct fails, try without `no_proxy` (WebSocket through proxy — slower, may work). Flip per session.
+
+```bash
+# colab (hackxie1998) — default account
 colab new --gpu T4 -s <name> && colab exec -s <name> -f script.py --timeout 120
 
-# cc (xbetterdetermine) — often needs no_proxy for WebSocket
-export HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890
-export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
+# cc (xbetterdetermine), cb (stefaniehu929), clb (xieminghack) — same pattern
 HOME=~/colab-accounts/account-c colab new --gpu T4 -s <name>
 HOME=~/colab-accounts/account-c colab exec -s <name> -f script.py --timeout 120
-
-# cb (stefaniehu929) — same pattern
-
-# clb (xieminghack) — same pattern
 ```
 
 Only 1 GPU per free account. SSL errors transient — retry before assuming dead.
 
-Free-tier GPU (T4) sessions last ~12-15 min — keep experiments under 10 min total.
+Colab official limits: 12h max session, ~90min idle timeout. The observed ~12-15min effective window is WebSocket disconnection through the proxy, NOT Colab killing the session. The keep-alive daemon (auto-spawned by `colab new`, calls `KeepAliveAssignment` RPC every 60s) prevents idle timeout — but does nothing for exec WebSocket stability.
 
 ## Free-tier reality
 
-**Sessions die in 8-12 min on T4.** Keep experiments under ~4 min each. 20-epoch AlexNet/Imagenette ≈ 3.5 min. Parallelize across accounts. Download immediately on completion.
+**Colab official limits**: 12h max session, ~90min idle timeout. GPU quota is dynamic — heavy use triggers 12-24h cooldown.
+
+**Effective reality from China**: `colab exec` WebSocket drops frequently through the proxy, making interactive work windows ~12-15 min. The session itself survives (keep-alive daemon works), but exec becomes unreachable.
+
+**Mitigations**:
+- Detached bootstrap (`launch.py` spawns training via `start_new_session=True`) — training survives exec drops
+- `no_proxy="*.colab.dev"` — WebSocket direct often more stable than through SOCKS5
+- Checkpoint to Drive (`colab drivemount`) — survive session death
+- Multi-account rotation — work around GPU quota cooldowns
+- Kaggle Notebooks as complement — push model (REST API), no WebSocket dependency, 30h/week GPU
+
+See `docs/` for deep-dive analysis: websocket-stability, session-health-monitoring, kaggle-notebooks, drive-mcp-colab.
 
 ## Core workflow
 
 ```bash
-# 1. Provision + upload + launch
+# 1. Provision + mount Drive + upload + launch
 colab new --gpu T4 -s training
+colab drivemount -s training
 colab upload *.py /content/
 colab exec -s training -f launch.py --timeout 120   # detaches train subprocess
 
@@ -78,11 +99,65 @@ colab download /content/<project>-output.tar.gz projects/<project>/output/
 colab stop -s training
 ```
 
+## Checkpoint persistence
+
+**VM-local checkpoints (`/content/checkpoints/`) die with the session.** Two strategies:
+
+1. **Drive mount (P0, recommended)**: `colab drivemount` → train.py writes checkpoints to `/content/drive/MyDrive/colab-checkpoints/<project>/`. VM→Drive goes over Google internal network — bypasses China proxy entirely.
+2. **Manual tar+download**: Cron-triggered download of checkpoint tars. Works but adds complexity.
+
+See `docs/drive-mcp-colab-integration.md` for full analysis.
+
 ## Detached training (gotchas)
 
 - `PYTHONUNBUFFERED=1` + `python -u` + `start_new_session=True` in subprocess.Popen
 - `colab exec -f` reads LOCAL files (relative paths), sends to VM. No `-c` flag — use stdin pipe.
 - `colab download` needs tar for dirs: `tar -czf /content/out.tar.gz -C /content dir/`
+
+## Deploy scripts (bash)
+
+**macOS default bash is 3.2.** No associative arrays (`declare -A`), no `shopt -s globstar`. Use indexed arrays only.
+
+**Aliases don't work in bash scripts.** `cb`, `clb`, `cc` are zsh aliases — not available in `#!/bin/bash` or non-interactive shells. Always use explicit env vars:
+```bash
+# Each account:
+HOME=~/colab-accounts/account-b /Users/mx/.local/bin/colab new --gpu T4 -s <name>
+HOME=~/colab-accounts/account-clb /Users/mx/.local/bin/colab exec -s <name> -f script.py
+```
+
+**Never expand proxy vars via `$VAR`.** `export $PX` and `env $PROXY` mangle multi-value env vars (URL parsing breaks with `InvalidSchema`/`LocationParseError`). Always use separate `export` lines:
+```bash
+# Works:
+export HTTPS_PROXY=http://127.0.0.1:7890
+export HTTP_PROXY=http://127.0.0.1:7890
+export ALL_PROXY=socks5://127.0.0.1:7890
+cmd ...
+
+# Broken — URL concatenation:
+export PX="HTTPS_PROXY=http://... HTTP_PROXY=http://..."
+env $PX cmd        # env var values bleed together
+export $PX && cmd  # same issue
+```
+
+## Proxy gotchas
+
+**SOCKS5 needs PySocks for REST (colab download/sessions).** `socks5://127.0.0.1:7890` fails with `InvalidSchema: Missing dependencies for SOCKS support` on `colab download`. Install: `pip install requests[socks]`. Or use `http://127.0.0.1:7890` style for REST — works without extra deps.
+
+**REST survives when WebSocket dies.** `colab sessions`, `colab download`, `colab stop` use REST (`colab.pa.googleapis.com`) — they work even when `colab exec` returns 404/401. Use `colab download` as a fallback monitoring path to check training progress when exec is unreachable.
+
+## HF datasets: avoid the library, use raw CDN
+
+**Colab's pre-installed `datasets` version is too new** for many dataset scripts. `load_dataset("iwslt2017", ...)` fails with "Dataset scripts are no longer supported." Pinning `datasets==2.14.0` partly works but lacks `trust_remote_code`.
+
+**Instead, download raw files directly from HF CDN:**
+```python
+# Pattern: https://huggingface.co/datasets/ORG/REPO/resolve/main/path/to/file
+# Use canonical org casing — lowercase redirects via 307 (urllib doesn't follow)
+url = "https://huggingface.co/datasets/IWSLT/iwslt2017/resolve/main/data/2017-01-trnted/texts/de/en/de-en.zip"
+urllib.request.urlretrieve(url, dest)  # 302 redirect — works
+```
+
+**urllib vs redirects:** `urllib.request.urlretrieve` follows 301/302/303 but NOT 307/308. HF CDN uses 307 for case mismatches, 302 for canonical URLs. Always use the canonical org name casing.
 
 ## vLLM on Colab
 
@@ -141,3 +216,15 @@ VRAM fit (T4 15.6 GB): SmolLM2-1.7B ~12.8 GB. Qwen2.5-3B likely fits. 7B needs A
 
 - User runs parallel Claude Code sessions (41% of messages). Files may change mid-session.
 - Skills live in `.claude/skills/<name>/SKILL.md` — not `.agents/skills/` or other paths.
+
+## Kaggle Notebooks (complementary GPU)
+
+Kaggle's push model (REST API) avoids Colab's WebSocket problem entirely. 30h/week GPU (P100 or T4 x2), transparent quota. Use when Colab is unreliable.
+
+```bash
+kaggle kernels push -p ./project-dir   # push + run (REST call, no long connection)
+kaggle kernels status user/slug        # check status
+kaggle kernels output user/slug -p ./  # download results
+```
+
+See `docs/kaggle-notebooks-analysis.md` for full comparison and integration strategy.

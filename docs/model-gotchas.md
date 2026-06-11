@@ -150,3 +150,95 @@ cb exec -f run_all.py --timeout 900 && cb download /content/out.tar.gz ./
 ```
 
 Retry 2-3 times on SSL errors — they're often transient. Check `cb sessions` after failures to see if the VM is still alive.
+
+---
+
+## Transformer IWSLT (Attention Is All You Need)
+
+Date: 2026-06-11 | GPU: T4 | Free tier | 61M params | 206K pairs
+
+### 1. IWSLT 2017 data access: 5 failed approaches before finding the right one
+
+The IWSLT 2017 De-En dataset is surprisingly hard to download reliably on Colab:
+
+| Attempt | Approach | Error |
+|---------|----------|-------|
+| 1 | Direct URL `wit3.fbk.eu/.../de-en.tgz` | Returns HTML login page (Google auth wall), not gzip |
+| 2 | `datasets.load_dataset("iwslt2017", ...)` | Colab's datasets too new — "Dataset scripts are no longer supported" |
+| 3 | `datasets==2.14.0` pinned | No `trust_remote_code` support, builder config error |
+| 4 | HF CDN raw `.../iwslt2017/resolve/main/data/de-en/train.de` | Lowercase org `iwslt2017` → 307 redirect (urllib doesn't follow 307) |
+| 5 | HF CDN raw `.../IWSLT/iwslt2017/.../de-en.zip` | 404 — wrong path in repo |
+
+**Final working approach:** Use canonical uppercase org + correct ZIP path + urllib:
+```python
+# IWSLT → 302 redirect (urllib follows). iwslt2017 → 307 (urllib doesn't).
+url = "https://huggingface.co/datasets/IWSLT/iwslt2017/resolve/main/data/2017-01-trnted/texts/de/en/de-en.zip"
+urllib.request.urlretrieve(url, zip_path)
+# ZIP contains de-en/train.tags.de-en.{de,en} — plain text after XML meta tags
+```
+
+### 2. IWSLT training files: plain text, not `<seg>` wrapped
+
+The `train.tags.de-en.{de,en}` files have XML meta tags (`<doc>`, `<url>`, `<speaker>`, `<talkid>`, `<title>`, `<description>`) in the header, followed by plain text sentences (one per line). They do NOT use `<seg>` tags — unlike what the dataset script suggests. Parser must:
+- Skip lines starting with `<` (meta tags)
+- Treat everything else as sentence pairs
+- Filter in parallel (both DE and EN lines together, not independently)
+
+### 3. DataLoader num_workers>0 hangs on Colab
+
+With `num_workers=2` and the Rust-backed `tokenizers` library, `DataLoader` stalls silently after model init. No error, no crash — just no forward progress. `num_workers=0` fixes it. Pre-tokenization eliminates any throughput concern.
+
+### 4. Training appears "stuck at Params" but is actually running
+
+The log prints "Params: 61,009,920" then nothing for 5+ minutes. Training IS running — CUDA JIT compilation happens on the first batch (2-3 min), then the first epoch is 4-5 min. Per-epoch logging means no intermediate output. Check `nvidia-smi` or `ps aux` to confirm.
+
+### 5. First epoch overhead: 7-10 min before first log line
+
+Breakdown on fresh VM:
+- ZIP download: 30s
+- ZIP extraction: 10s
+- BPE tokenizer training (32K vocab, 206K pairs × 2): 60s
+- Pre-tokenization (optional but essential): 30s
+- Model init 61M params to GPU: 10s
+- CUDA JIT compilation (first batch): 2-3 min
+- First epoch training: 2-5 min
+
+Total ~7-10 min. With ~12-15 min WebSocket window, first epoch barely fits. Second session onward (all data cached, no JIT) gets 3-4 epochs.
+
+### 6. AMP on T4: 2-3× speedup
+
+```python
+# PyTorch 2.11 API (not torch.cuda.amp — deprecated)
+scaler = torch.amp.GradScaler("cuda")
+with torch.amp.autocast("cuda"):
+    logits = model(src, tgt_in, src_mask, tgt_mask)
+    loss = criterion(...)
+scaler.scale(loss).backward()
+scaler.unscale_(optimizer)
+torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+scaler.step(optimizer)
+scaler.update()
+```
+
+T4 tensor cores give ~8× matmul throughput in float16 vs float32. Per-epoch drops from ~5 min to ~2 min.
+
+### 7. Pre-tokenization eliminates 80% of DataLoader overhead
+
+Per-sample `tokenizer.encode()` in `__getitem__` is the dominant bottleneck. With 206K pairs, that's 206K encode calls per epoch. Pre-tokenize once after training the tokenizer, save to `.pt`, reload instantly:
+
+```python
+# One-time after tokenizer training
+data = [(torch.tensor(encode(de)), torch.tensor(encode(en))) for de, en in pairs]
+torch.save(data, "/content/iwslt_data/train.pt")
+
+# Dataset loads pre-tokenized tensors directly
+class TranslationDataset(Dataset):
+    def __init__(self, ...):
+        self.data = torch.load(cached_path, weights_only=False)
+    def __getitem__(self, idx):
+        return self.data[idx]  # instant
+```
+
+### 8. Beam search finished-beam handling
+
+When a beam produces EOS, it must only allow EOS on subsequent steps (force `log_probs[finished, :] = -inf; log_probs[finished, eos_idx] = 0`). Otherwise the beam keeps generating tokens after EOS, wasting compute and diluting scores.
