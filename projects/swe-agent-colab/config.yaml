@@ -1,0 +1,87 @@
+# projects/swe-agent-colab/config.yaml
+agent:
+  max_steps: 30
+  max_requeries: 3
+  execution_timeout: 30
+  max_consecutive_timeouts: 3
+  max_observation_length: 50000
+
+  system_template: |
+    You are a helpful assistant that can interact with a computer to solve tasks.
+    You have access to the following functions:
+
+    {command_docs}
+
+  instance_template: |
+    I've uploaded a python code repository in /testbed. Consider the following issue:
+
+    <issue>
+    {problem_statement}
+    </issue>
+
+    Follow these steps:
+    1. Explore the repository to understand the relevant code
+    2. Create a script to reproduce the error and run it with `bash python <script.py>`
+    3. Edit the source code using str_replace_editor to fix the issue
+    4. Re-run the reproduction script to confirm the fix
+    5. Think about edge cases and ensure the fix handles them
+    6. Submit your changes with the submit command
+
+  observation_template: |
+    OBSERVATION:
+    {observation}
+
+  observation_truncated_template: |
+    OBSERVATION:
+    {observation}
+    <response clipped><NOTE>Observations should not exceed {max_observation_length} characters. Try commands that produce less output.</NOTE>
+
+  no_output_template: |
+    Your command ran successfully and did not produce any output.
+
+  blocked_error_template: |
+    Operation '{action}' is not supported by this environment. Please try an alternative approach.
+
+  syntax_error_template: |
+    Your bash command contained syntax errors and was NOT executed.
+    Output of `bash -n`:
+    {bash_stderr}
+
+    Please fix the syntax and try again.
+
+  command_timeout_template: |
+    The command '{action}' was cancelled because it took more than {execution_timeout} seconds.
+    Please try a different, faster command.
+
+  format_error_template: |
+    Could not parse your output. Please use the function calling format.
+
+tools:
+  env_variables:
+    PAGER: cat
+    MANPAGER: cat
+    LESS: -R
+    PIP_PROGRESS_BAR: "off"
+    TQDM_DISABLE: "1"
+    GIT_PAGER: cat
+
+  blocklist:
+    - vim
+    - vi
+    - emacs
+    - nano
+    - less
+    - "tail -f"
+
+  blocklist_standalone:
+    - python
+    - python3
+    - ipython
+    - bash
+    - sh
+    - "/bin/bash"
+    - "/bin/sh"
+    - su
+
+  submit_command: submit
+  enable_bash_tool: true
