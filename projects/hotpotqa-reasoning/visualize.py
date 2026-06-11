@@ -54,39 +54,76 @@ def _accuracy_chart(data: dict) -> None:
 
 
 def _latency_chart(data: dict) -> None:
-    per = data["per_example"]
-    cot_lat = [r["cot_latency_s"] for r in per if r["cot_latency_s"]]
-    react_lat = [r["react_latency_s"] for r in per if r["react_latency_s"]]
+    cot_lat = data["cot"]["avg_latency_s"]
+    react_lat = data["react"]["avg_latency_s"]
+    cot_wall = data["cot"]["total_wall_time_s"]
+    react_wall = data["react"]["total_wall_time_s"]
 
-    fig, ax = plt.subplots(**STYLE)
-    ax.boxplot([cot_lat, react_lat], labels=["CoT", "ReAct"], patch_artist=True,
-               boxprops=dict(facecolor="#93c5fd"),
-               medianprops=dict(color="#1e3a5f"))
-    ax.set_ylabel("Latency (seconds)")
-    ax.set_title("Per-Example Latency Distribution")
-    ax.grid(axis="y", alpha=0.3)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5), dpi=120)
+
+    # Per-example amortized latency
+    x = np.arange(1)
+    width = 0.3
+    ax1.bar(x - width / 2, [cot_lat], width, label="CoT", color="#3b82f6")
+    ax1.bar(x + width / 2, [react_lat], width, label="ReAct", color="#ef4444")
+    ax1.set_ylabel("Seconds")
+    ax1.set_title("Amortized Latency per Example")
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(["Avg per example"])
+    ax1.legend()
+    ax1.grid(axis="y", alpha=0.3)
+    for bar in ax1.containers:
+        ax1.bar_label(bar, fmt="%.3f", fontsize=9)
+
+    # Total wall time
+    ax2.bar(x - width / 2, [cot_wall], width, label="CoT", color="#3b82f6")
+    ax2.bar(x + width / 2, [react_wall], width, label="ReAct", color="#ef4444")
+    ax2.set_ylabel("Seconds")
+    ax2.set_title("Total Wall-Clock Time")
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(["Total"])
+    ax2.legend()
+    ax2.grid(axis="y", alpha=0.3)
+    for bar in ax2.containers:
+        ax2.bar_label(bar, fmt="%.1f", fontsize=9)
+
     fig.tight_layout()
     fig.savefig(f"{OUTPUT_DIR}/latency_comparison.png")
     plt.close(fig)
 
 
 def _token_efficiency(data: dict) -> None:
+    per = data["per_example"]
+
+    cot_x = [r["cot_tokens"] for r in per]
+    cot_y = [r["cot_em"] for r in per]
+    react_x = [r["react_tokens"] for r in per]
+    react_y = [r["react_em"] for r in per]
+
     fig, ax = plt.subplots(**STYLE)
 
+    ax.scatter(cot_x, cot_y, s=30, label="CoT", color="#3b82f6",
+               alpha=0.5, edgecolors="none")
+    ax.scatter(react_x, react_y, s=30, label="ReAct", color="#ef4444",
+               alpha=0.5, edgecolors="none")
+
+    # Averages as larger markers
     ax.scatter(
         data["cot"]["avg_tokens_per_example"], data["cot"]["exact_match"],
-        s=200, label="CoT", color="#3b82f6", zorder=5,
+        s=200, color="#3b82f6", edgecolors="white", linewidths=1.5, zorder=5,
     )
     ax.scatter(
         data["react"]["avg_tokens_per_example"], data["react"]["exact_match"],
-        s=200, label="ReAct", color="#ef4444", zorder=5,
+        s=200, color="#ef4444", edgecolors="white", linewidths=1.5, zorder=5,
     )
 
-    ax.set_xlabel("Avg Tokens per Example")
-    ax.set_ylabel("Exact Match Accuracy")
-    ax.set_title("Token Efficiency: Accuracy vs Cost")
+    ax.set_xlabel("Tokens per Example")
+    ax.set_ylabel("Exact Match (1=correct, 0=wrong)")
+    ax.set_title("Token Efficiency: Per-Example Accuracy vs Cost")
     ax.legend()
     ax.grid(alpha=0.3)
+    ax.set_yticks([0, 1])
+    ax.set_yticklabels(["Wrong", "Correct"])
     fig.tight_layout()
     fig.savefig(f"{OUTPUT_DIR}/token_efficiency.png")
     plt.close(fig)

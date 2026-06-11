@@ -21,6 +21,12 @@ def log(msg: str) -> None:
     print(line, flush=True)
 
 
+def _write_heartbeat() -> None:
+    import json as _json
+    with open("/content/heartbeat.json", "w") as f:
+        _json.dump({"timestamp": time.time()}, f)
+
+
 def main() -> None:
     log("=== HotpotQA Reasoning Comparison ===")
 
@@ -31,6 +37,10 @@ def main() -> None:
     log(f"Loaded {len(examples)} examples")
     log(f"  Types: {sum(1 for e in examples if e['type']=='bridge')} bridge, "
         f"{sum(1 for e in examples if e['type']=='comparison')} comparison")
+
+    # ── Heartbeat ──
+    _write_heartbeat()
+    log("Heartbeat started")
 
     # ── Init vLLM ──
     log("Initializing vLLM with Qwen2.5-7B-Instruct-AWQ...")
@@ -53,6 +63,7 @@ def main() -> None:
     cot_results = run_cot(llm, examples)
     cot_time = time.time() - t0
     log(f"CoT completed in {cot_time:.1f}s")
+    _write_heartbeat()
 
     with open(COT_RESULTS_PATH, "w") as f:
         json.dump(cot_results, f, indent=2, ensure_ascii=False)
@@ -66,6 +77,7 @@ def main() -> None:
     react_results = run_react(llm, examples)
     react_time = time.time() - t0
     log(f"ReAct completed in {react_time:.1f}s")
+    _write_heartbeat()
 
     with open(REACT_RESULTS_PATH, "w") as f:
         json.dump(react_results, f, indent=2, ensure_ascii=False)
@@ -75,7 +87,7 @@ def main() -> None:
     log("\n=== Metrics ===")
     from metrics import compute_all
 
-    metrics = compute_all(cot_results, react_results)
+    metrics = compute_all(cot_results, react_results, cot_time, react_time)
     log(f"CoT  EM: {metrics['cot']['exact_match']:.4f}  F1: {metrics['cot']['f1']:.4f}  "
         f"Lat: {metrics['cot']['avg_latency_s']:.2f}s  Tok: {metrics['cot']['avg_tokens_per_example']:.0f}")
     log(f"ReAct EM: {metrics['react']['exact_match']:.4f}  F1: {metrics['react']['f1']:.4f}  "

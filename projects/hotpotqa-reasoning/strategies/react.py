@@ -19,6 +19,9 @@ def run_react(llm, examples: list[dict]) -> list[dict]:
     Each step sends one prompt per still-active example in a single vLLM
     call. Examples that produce 'Final Answer:' are removed from the
     active set for subsequent steps.
+
+    Per-example latency is amortized step time: each active example at a
+    step gets step_time / n_active added to its cumulative latency.
     """
     sampling_params = SamplingParams(
         temperature=0.0,
@@ -59,15 +62,15 @@ def run_react(llm, examples: list[dict]) -> list[dict]:
         outputs = llm.generate(prompts, sampling_params)
         step_time = time.time() - t0
 
+        amortized_per_example = step_time / len(active_ids)
+
         for eid, out in zip(active_ids, outputs):
             s = states[eid]
             raw = out.outputs[0].text
             n_tokens = len(out.outputs[0].token_ids)
-            ttft = _react_ttft(out)
 
             s["total_tokens"] += n_tokens
-            if ttft is not None:
-                s["total_latency_s"] += ttft
+            s["total_latency_s"] += amortized_per_example
             s["steps"] = step
 
             answer = extract_final_answer(raw)
@@ -104,13 +107,6 @@ def run_react(llm, examples: list[dict]) -> list[dict]:
           f"{sum(r['tokens'] for r in results)} total tokens")
 
     return results
-
-
-def _react_ttft(output) -> float | None:
-    m = output.metrics
-    if m is not None and m.first_token_time is not None and m.arrival_time is not None:
-        return m.first_token_time - m.arrival_time
-    return None
 
 
 def _force_extract(history: str) -> str:

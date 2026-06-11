@@ -34,26 +34,18 @@ def f1_score(prediction: str, ground_truth: str) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
-def compute_aggregates(results: list[dict]) -> dict:
-    """Compute aggregate stats from per-example results."""
-    n = len(results)
-    em_sum = sum(r["em"] for r in results)
-    f1_sum = sum(r["f1"] for r in results)
-    latencies = [r["latency_s"] for r in results if r.get("latency_s")]
-    tokens = [r["tokens"] for r in results]
+def compute_all(cot_results: list[dict], react_results: list[dict],
+                cot_time_s: float = 0, react_time_s: float = 0) -> dict:
+    """Join CoT and ReAct results, compute per-example metrics, and aggregate.
 
-    return {
-        "exact_match": round(em_sum / n, 4) if n else 0,
-        "f1": round(f1_sum / n, 4) if n else 0,
-        "avg_latency_s": round(sum(latencies) / len(latencies), 3) if latencies else 0,
-        "total_tokens": sum(tokens),
-        "avg_tokens_per_example": round(sum(tokens) / n, 1) if n else 0,
-    }
-
-
-def compute_all(cot_results: list[dict], react_results: list[dict]) -> dict:
-    """Join CoT and ReAct results, compute per-example metrics, and aggregate."""
+    cot_time_s and react_time_s are the total wall-clock seconds for each
+    strategy. Per-example amortized latency is derived from these.
+    """
+    n = len(cot_results)
     react_by_id = {r["id"]: r for r in react_results}
+
+    cot_per_amortized = cot_time_s / n if n else 0
+    react_per_amortized = react_time_s / n if n else 0
 
     per_example = []
     for cr in cot_results:
@@ -65,12 +57,10 @@ def compute_all(cot_results: list[dict], react_results: list[dict]) -> dict:
             "cot_prediction": cr["prediction"],
             "cot_em": exact_match(cr["prediction"], cr["answer"]),
             "cot_f1": round(f1_score(cr["prediction"], cr["answer"]), 4),
-            "cot_latency_s": cr["latency_s"],
             "cot_tokens": cr["tokens"],
             "react_prediction": rr["prediction"],
             "react_em": exact_match(rr["prediction"], rr["answer"]),
             "react_f1": round(f1_score(rr["prediction"], rr["answer"]), 4),
-            "react_latency_s": rr["latency_s"],
             "react_tokens": rr["tokens"],
             "react_steps": rr.get("steps", 0),
         })
@@ -85,28 +75,27 @@ def compute_all(cot_results: list[dict], react_results: list[dict]) -> dict:
     for s in react_steps:
         step_dist[str(s)] = step_dist.get(str(s), 0) + 1
 
-    cot_lat = [r["cot_latency_s"] for r in per_example if r["cot_latency_s"]]
-    react_lat = [r["react_latency_s"] for r in per_example if r["react_latency_s"]]
-
     return {
         "config": {
             "model": "Qwen/Qwen2.5-7B-Instruct-AWQ",
             "dataset": "hotpot_qa",
-            "n_examples": len(per_example),
+            "n_examples": n,
         },
         "cot": {
             "exact_match": round(sum(cot_em) / len(cot_em), 4),
             "f1": round(sum(cot_f1) / len(cot_f1), 4),
-            "avg_latency_s": round(sum(cot_lat) / len(cot_lat), 3) if cot_lat else 0,
+            "avg_latency_s": round(cot_per_amortized, 3),
+            "total_wall_time_s": round(cot_time_s, 1),
             "total_tokens": sum(r["cot_tokens"] for r in per_example),
-            "avg_tokens_per_example": round(sum(r["cot_tokens"] for r in per_example) / len(per_example), 1),
+            "avg_tokens_per_example": round(sum(r["cot_tokens"] for r in per_example) / n, 1) if n else 0,
         },
         "react": {
             "exact_match": round(sum(react_em) / len(react_em), 4),
             "f1": round(sum(react_f1) / len(react_f1), 4),
-            "avg_latency_s": round(sum(react_lat) / len(react_lat), 3) if react_lat else 0,
+            "avg_latency_s": round(react_per_amortized, 3),
+            "total_wall_time_s": round(react_time_s, 1),
             "total_tokens": sum(r["react_tokens"] for r in per_example),
-            "avg_tokens_per_example": round(sum(r["react_tokens"] for r in per_example) / len(per_example), 1),
+            "avg_tokens_per_example": round(sum(r["react_tokens"] for r in per_example) / n, 1) if n else 0,
             "avg_steps": round(sum(react_steps) / len(react_steps), 1),
             "step_distribution": step_dist,
         },
