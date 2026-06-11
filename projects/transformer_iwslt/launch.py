@@ -58,6 +58,7 @@ if os.path.exists(hf_cache):
 # --- Spawn training ---
 env = os.environ.copy()
 env["PYTHONUNBUFFERED"] = "1"
+env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 cmd = f"{sys.executable} -u /content/train.py --exp_id {exp_id} --max_train_pairs 50000"
 if resume_flag:

@@ -323,7 +323,7 @@ def main():
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pt file")
     parser.add_argument("--data_dir", default="/content/iwslt_data")
     parser.add_argument("--epochs", type=int, default=20)
-    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--max_len", type=int, default=128)
     parser.add_argument("--beam_size", type=int, default=4)
     parser.add_argument("--output_dir", default="/content")
@@ -455,8 +455,11 @@ def main():
         train_loss = total_loss / max(n_batches, 1)
 
         # --- Validate ---
+        torch.cuda.empty_cache()
         val_loss = _compute_val_loss(model, val_loader, criterion, device)
+        torch.cuda.empty_cache()
         bleu = evaluate(model, val_bleu_loader, tokenizer, device, beam_size=args.beam_size, max_len=args.max_len)
+        torch.cuda.empty_cache()
 
         epoch_time = time.time() - t0
         wall_time_s += epoch_time
