@@ -297,7 +297,12 @@ def evaluate_config(controller, questions, name, max_thinking_tokens, num_suppre
             }
         elapsed = time.time() - start_time
 
-        correct = is_correct(result.get("answer", ""), solution)
+        # If answer is empty (e.g. base model without s1 markers), fall back
+        # to extracting from the full generation output.
+        answer = result.get("answer", "").strip()
+        if not answer:
+            answer = result.get("full_output", "")
+        correct = is_correct(answer, solution)
 
         results.append({
             "question_id": i,
@@ -429,6 +434,10 @@ def main():
         max_think = _find_config_max_think(cfg_name)
         avg_tokens = summary["avg_thinking_tokens"]
 
+        # Tag as "sft" or "baseline" so charts.py doesn't rely on naming prefix
+        is_baseline = any(cfg_name == bc[0] for bc in BASELINE_CONFIGS)
+        point_type = "baseline" if is_baseline else "sft"
+
         # Controlled if actual avg tokens <= max_thinking_setting * 1.1
         # Configs with max_think=0 (no budget) are always considered controlled
         if max_think == 0:
@@ -438,6 +447,7 @@ def main():
 
         points.append({
             "config": cfg_name,
+            "type": point_type,
             "x": avg_tokens,
             "y": summary["accuracy"],
             "controlled": controlled,

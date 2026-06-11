@@ -102,9 +102,22 @@ def plot_scaling_curve(metrics_path: str, output_dir: str):
         print("[charts] No data points in metrics.json -- skipping scaling_curve plot")
         return
 
-    # Separate SFT (config not starting with "base_") and baseline
-    sft_pts = [p for p in points if not p["config"].startswith("base_")]
-    base_pts = [p for p in points if p["config"].startswith("base_")]
+    # Separate SFT and baseline using explicit type tag.
+    # Backwards-compatible fallback: if type is missing, fall back to prefix check.
+    sft_pts = []
+    base_pts = []
+    for p in points:
+        t = p.get("type")
+        if t == "sft":
+            sft_pts.append(p)
+        elif t == "baseline":
+            base_pts.append(p)
+        else:
+            # Old metrics.json without type field -- use legacy prefix heuristic
+            if p["config"].startswith("base_"):
+                base_pts.append(p)
+            else:
+                sft_pts.append(p)
 
     # Sort by x (thinking tokens)
     sft_pts.sort(key=lambda p: p["x"])
