@@ -27,14 +27,19 @@ SPECIAL_TOKENS = ["[PAD]", "[SOS]", "[EOS]", "[UNK]"]
 
 
 def _parse_iwslt_line(line: str) -> str | None:
-    """Extract text from an IWSLT XML-tagged line. Returns None for non-seg lines."""
+    """Extract text from an IWSLT tagged line. Skips meta tags, keeps plain text."""
     line = line.strip()
-    if not line.startswith("<seg"):
+    if not line:
         return None
-    # <seg id="N"> text </seg> → extract "text"
-    part = line.split(">", 1)[1]  # after <seg id="N">
-    text = part.rsplit("<", 1)[0]  # before </seg>
-    return text.strip()
+    if line.startswith("<"):
+        # Skip XML meta tags: <doc>, <url>, <keywords>, <speaker>, <talkid>, <title>, <description>
+        # Also skip <seg> if present (some versions have them)
+        if line.startswith("<seg"):
+            part = line.split(">", 1)[1]
+            text = part.rsplit("<", 1)[0]
+            return text.strip()
+        return None
+    return line
 
 
 def load_iwslt_pairs(data_dir: str) -> list[tuple[str, str]]:
