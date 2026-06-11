@@ -358,8 +358,8 @@ def main():
 
     train_ds = TranslationDataset(train_pairs, tokenizer, args.max_len, name="train")
     val_ds = TranslationDataset(val_pairs, tokenizer, args.max_len, name="val")
-    # Small subset for BLEU evaluation (beam search is O(n_sentences × beam_size × max_len))
-    val_bleu_pairs = val_pairs[:500]
+    # Tiny subset for BLEU (100 sentences, greedy decode = ~10s per eval)
+    val_bleu_pairs = val_pairs[:100]
     val_bleu_ds = TranslationDataset(val_bleu_pairs, tokenizer, args.max_len, name="val_bleu")
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
                               collate_fn=collate_fn, num_workers=0)
@@ -370,7 +370,7 @@ def main():
 
     # --- Model ---
     model = build_transformer(args.exp_id, vocab_size).to(device)
-    print(f"[train] Params: {sum(p.numel() for p in model.parameters()):,}")
+    print(f"[train] Params: {sum(p.numel() for p in model.parameters()):,}", flush=True)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0, betas=(0.9, 0.98), eps=1e-9)
     scheduler = NoamScheduler(optimizer, d_model=model.d_model, warmup_steps=4000)
@@ -449,6 +449,8 @@ def main():
             total_loss += loss.item()
             n_batches += 1
             tokens_processed += src.numel() + tgt.numel()
+            if n_batches % 200 == 0:
+                print(f"  batch {n_batches}: loss={loss.item():.3f}", flush=True)
 
         train_loss = total_loss / max(n_batches, 1)
 
@@ -473,7 +475,8 @@ def main():
 
         print(f"[train] Epoch {epoch:2d}/{args.epochs} | "
               f"train_loss={train_loss:.3f} | val_loss={val_loss:.3f} | "
-              f"BLEU={bleu:.1f} | lr={lr:.6f} | time={wall_time_s/60:.1f}m")
+              f"BLEU={bleu:.1f} | lr={lr:.6f} | batches={n_batches} | time={wall_time_s/60:.1f}m",
+              flush=True)
 
         # --- Checkpoint ---
         ckpt_path = os.path.join(ckpt_dir, f"checkpoint_epoch{epoch}.pt")
