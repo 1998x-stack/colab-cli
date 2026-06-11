@@ -124,13 +124,14 @@ def train_tokenizer(
 class TranslationDataset(Dataset):
     """Dataset of pre-tokenized (src_ids, tgt_ids) pairs as tensors."""
     def __init__(self, pairs: list[tuple[str, str]], tokenizer: Tokenizer, max_len: int = 128,
-                 data_dir: str = "/content/iwslt_data"):
-        cached = os.path.join(data_dir, "train.pt")
+                 data_dir: str = "/content/iwslt_data", name: str = "train"):
+        self._name = name
+        cached = os.path.join(data_dir, f"{name}.pt")
         if os.path.exists(cached):
-            print("[data] Loading pre-tokenized data...")
+            print(f"[data] Loading pre-tokenized {name} data...")
             self.data = torch.load(cached, weights_only=False)
         else:
-            print(f"[data] Pre-tokenizing {len(pairs)} pairs (one-time, ~30s)...")
+            print(f"[data] Pre-tokenizing {len(pairs)} pairs for {name} (one-time, ~30s)...")
             self.data = []
             for i, (de, en) in enumerate(pairs):
                 src = [SOS] + tokenizer.encode(de).ids[:max_len - 2] + [EOS]
@@ -350,12 +351,17 @@ def main():
     train_pairs = pairs[:split]
     val_pairs = pairs[split:]
 
-    train_ds = TranslationDataset(train_pairs, tokenizer, args.max_len)
-    val_ds = TranslationDataset(val_pairs, tokenizer, args.max_len)
+    train_ds = TranslationDataset(train_pairs, tokenizer, args.max_len, name="train")
+    val_ds = TranslationDataset(val_pairs, tokenizer, args.max_len, name="val")
+    # Small subset for BLEU evaluation (beam search is O(n_sentences × beam_size × max_len))
+    val_bleu_pairs = val_pairs[:500]
+    val_bleu_ds = TranslationDataset(val_bleu_pairs, tokenizer, args.max_len, name="val_bleu")
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
                               collate_fn=collate_fn, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False,
                             collate_fn=collate_fn, num_workers=0)
+    val_bleu_loader = DataLoader(val_bleu_ds, batch_size=args.batch_size, shuffle=False,
+                                 collate_fn=collate_fn, num_workers=0)
 
     # --- Model ---
     model = build_transformer(args.exp_id, vocab_size).to(device)
@@ -443,7 +449,7 @@ def main():
 
         # --- Validate ---
         val_loss = _compute_val_loss(model, val_loader, criterion, device)
-        bleu = evaluate(model, val_loader, tokenizer, device, beam_size=args.beam_size, max_len=args.max_len)
+        bleu = evaluate(model, val_bleu_loader, tokenizer, device, beam_size=args.beam_size, max_len=args.max_len)
 
         epoch_time = time.time() - t0
         wall_time_s += epoch_time
