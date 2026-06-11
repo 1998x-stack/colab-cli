@@ -4,7 +4,7 @@ Usage:
     python train.py --exp_id baseline
     python train.py --exp_id baseline --resume /content/checkpoints/ckpt_epoch5.pt
 """
-import argparse, json, math, os, sys, time
+import argparse, json, math, os, sys, time, urllib.request, gzip
 from pathlib import Path
 
 import torch
@@ -19,16 +19,37 @@ from checkpoint import save_checkpoint, load_checkpoint, ensure_checkpoint_dir
 
 
 # --- Constants ---
+# Raw IWSLT 2017 De-En files from HuggingFace CDN (no auth needed)
+IWSLT_DE = "https://huggingface.co/datasets/IWSLT/iwslt2017/resolve/main/data/de-en/train.de-en.de"
+IWSLT_EN = "https://huggingface.co/datasets/IWSLT/iwslt2017/resolve/main/data/de-en/train.de-en.en"
 PAD, SOS, EOS, UNK = 0, 1, 2, 3
 SPECIAL_TOKENS = ["[PAD]", "[SOS]", "[EOS]", "[UNK]"]
 
 
-def load_iwslt_pairs() -> list[tuple[str, str]]:
-    """Load IWSLT'17 De-En via datasets."""
-    from datasets import load_dataset
-    print("[data] Loading IWSLT'17 De-En (may download ~25MB)...")
-    ds = load_dataset("IWSLT/iwslt2017", "iwslt2017-de-en", split="train")
-    pairs = [(item["translation"]["de"], item["translation"]["en"]) for item in ds]
+def load_iwslt_pairs(data_dir: str) -> list[tuple[str, str]]:
+    """Download and load IWSLT'17 De-En from HF CDN raw files."""
+    os.makedirs(data_dir, exist_ok=True)
+    de_path = os.path.join(data_dir, "train.de")
+    en_path = os.path.join(data_dir, "train.en")
+
+    for url, path in [(IWSLT_DE, de_path), (IWSLT_EN, en_path)]:
+        if not os.path.exists(path):
+            print(f"[data] Downloading {os.path.basename(path)} from HF CDN...")
+            for attempt in range(3):
+                try:
+                    urllib.request.urlretrieve(url, path)
+                    break
+                except Exception as e:
+                    if attempt == 2:
+                        raise
+                    print(f"[data] Retry {attempt+1}/3: {e}")
+                    time.sleep(2)
+
+    with open(de_path) as df, open(en_path) as ef:
+        de_orig = [l.strip() for l in df]
+        en_orig = [l.strip() for l in ef]
+    assert len(de_orig) == len(en_orig), f"Mismatch: {len(de_orig)} de vs {len(en_orig)} en"
+    pairs = [(d, e) for d, e in zip(de_orig, en_orig) if d and e]
     print(f"[data] Loaded {len(pairs)} sentence pairs")
     return pairs
 
@@ -260,7 +281,7 @@ def main():
     print(f"[train] Device: {device}, Exp: {args.exp_id}")
 
     # --- Data ---
-    pairs = load_iwslt_pairs()
+    pairs = load_iwslt_pairs(args.data_dir)
 
     tok_path = os.path.join(args.data_dir, "tokenizer.json")
     if os.path.exists(tok_path):
