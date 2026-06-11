@@ -126,8 +126,7 @@ class Environment:
         history = self._edit_history[path]
         if len(history) < 2:
             raise ValueError(f"No previous edit to undo for {path}")
-        history.pop()  # current
-        previous = history[-1]  # restore
+        previous = history.pop()  # restore state before last edit
         self.write_file(path, previous)
 
     def _save_edit_backup(self, path: str):
