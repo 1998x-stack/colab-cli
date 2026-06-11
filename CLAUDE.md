@@ -21,6 +21,13 @@ projects/
 │   ├── bootstrap.py       # Colab bootstrap (pip install + spawn)
 │   └── check_progress.py
 ├── vllm-rag/ ml-tutorial/ autoresearch-t4/
+├── transformer_iwslt/    # Transformer (Attention Is All You Need) on IWSLT'14 De->En
+│   ├── model.py           # Encoder-decoder Transformer, 65M params, 3 configs
+│   ├── train.py           # IWSLT data pipeline, BPE tokenizer, training loop, beam search
+│   ├── launch.py          # Colab bootstrap with checkpoint-resume
+│   ├── check_progress.py  # Cron-based training monitor
+│   ├── checkpoint.py      # Save/load helpers for multi-session resume
+│   └── charts.py          # Post-hoc charts (loss, BLEU, ablation, attention, PE)
 ```
 
 ## Project conventions
