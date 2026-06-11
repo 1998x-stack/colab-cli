@@ -342,9 +342,9 @@ def main():
     train_ds = TranslationDataset(train_pairs, tokenizer, args.max_len)
     val_ds = TranslationDataset(val_pairs, tokenizer, args.max_len)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
-                              collate_fn=collate_fn, num_workers=2, pin_memory=True)
+                              collate_fn=collate_fn, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False,
-                            collate_fn=collate_fn, num_workers=2, pin_memory=True)
+                            collate_fn=collate_fn, num_workers=0)
 
     # --- Model ---
     model = build_transformer(args.exp_id, vocab_size).to(device)
