@@ -1,5 +1,6 @@
 """Download HotpotQA distractor set, sample 200 examples, save to JSON."""
 import json
+import os
 import random
 
 OUTPUT_PATH = "/content/data.json"
@@ -41,6 +42,7 @@ def _flatten_context(context: dict) -> str:
 
 
 def save(examples: list[dict], path: str = OUTPUT_PATH) -> None:
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w") as f:
         json.dump(examples, f, indent=2, ensure_ascii=False)
     print(f"Saved {len(examples)} examples to {path}")
