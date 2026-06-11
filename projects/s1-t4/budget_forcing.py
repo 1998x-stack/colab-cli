@@ -24,12 +24,15 @@ class BudgetForcingLogitsProcessor(LogitsProcessor):
     Controls the transition from the thinking phase to the answer phase:
     - Force early exit: when token_count >= max_thinking_tokens, boost the
       end-of-thinking token logit to force the model to start answering.
-    - Extend thinking: when the model tries to output the end-of-thinking
-      token but extensions_done < num_wait_extensions, suppress that token
-      so the model continues reasoning.
+    - Suppress end-of-thinking: when the model tries to output the
+      end-of-thinking token but suppressions_done < num_suppressions,
+      suppress that token so the model continues reasoning. This is
+      equivalent to the paper's "Wait" mechanism but implemented at the
+      logit level -- the model naturally picks its second-best token and
+      continues extending its reasoning.
 
     State is tracked per-instance: token_count, thinking_ended,
-    extensions_done, force_end flag. Create a fresh instance for each
+    suppressions_done, force_end flag. Create a fresh instance for each
     generation to avoid state leakage.
 
     Args:
@@ -38,7 +41,7 @@ class BudgetForcingLogitsProcessor(LogitsProcessor):
             "<|im_start|>answer".
         max_thinking_tokens: Maximum number of thinking tokens before
             forcing early exit. Default is 2048.
-        num_wait_extensions: How many times to suppress the end-of-thinking
+        num_suppressions: How many times to suppress the end-of-thinking
             token, forcing the model to keep thinking. Default is 0.
     """
 
@@ -47,7 +50,7 @@ class BudgetForcingLogitsProcessor(LogitsProcessor):
         tokenizer,
         think_end_str="<|im_start|>answer",
         max_thinking_tokens=2048,
-        num_wait_extensions=0,
+        num_suppressions=0,
     ):
         super().__init__()
         self._think_end_ids = tokenizer.encode(
@@ -57,15 +60,15 @@ class BudgetForcingLogitsProcessor(LogitsProcessor):
             # Fallback: encode without special token stripping
             self._think_end_ids = tokenizer.encode(think_end_str)
         self._max_thinking_tokens = max_thinking_tokens
-        self._num_wait_extensions = num_wait_extensions
+        self._num_suppressions = num_suppressions
 
         # State -- reset on construction, fresh per generation
         self.token_count = 0
         self.thinking_ended = False
-        self.extensions_done = 0
+        self.suppressions_done = 0
         self.force_end = False
 
-    def __call__(self, input_ids, scores):
+    def __call__(self, input_ids, scores, **kwargs):
         """Modify logits for the next token based on budget forcing logic.
 
         Args:
@@ -75,6 +78,8 @@ class BudgetForcingLogitsProcessor(LogitsProcessor):
         Returns:
             Modified scores tensor of the same shape.
         """
+        if scores.shape[0] != 1:
+            raise ValueError("BudgetForcingLogitsProcessor requires batch_size=1")
         if self.thinking_ended:
             return scores
 
@@ -100,11 +105,11 @@ class BudgetForcingLogitsProcessor(LogitsProcessor):
         if self.token_count >= self._max_thinking_tokens:
             scores[0, end_id] = 1e9
             self.force_end = True
-        elif self.extensions_done < self._num_wait_extensions:
-            # Extend thinking if model wants to end but extensions remain
+        elif self.suppressions_done < self._num_suppressions:
+            # Suppress end-of-thinking token so model continues reasoning
             if torch.argmax(scores[0]).item() == end_id:
                 scores[0, end_id] = -1e9
-                self.extensions_done += 1
+                self.suppressions_done += 1
 
         return scores
 
@@ -116,10 +121,12 @@ class BudgetForcingController:
     ensuring no state leakage between generations. Handles tokenization,
     generation, and parsing of results.
 
-    NOTE: HuggingFace's generate() only supports LogitsProcessor for
-    modifying logits -- it cannot append text mid-generation. For
-    multi-turn extension (appending "Wait" after a full generation),
-    see evaluate.py (Task 4).
+    NOTE: The LogitsProcessor suppresses the end-of-thinking token at the
+    logit level, which causes the model to naturally pick its second-best
+    token and continue reasoning. This achieves the paper's "Wait" effect
+    without mid-generation text manipulation. HuggingFace's generate()
+    only supports LogitsProcessor for modifying logits -- it cannot append
+    text mid-generation.
 
     Args:
         model: HuggingFace model (PreTrainedModel).
@@ -150,7 +157,7 @@ class BudgetForcingController:
         self,
         prompt,
         max_thinking_tokens=2048,
-        num_wait_extensions=0,
+        num_suppressions=0,
         max_new_tokens=1024,
         temperature=0.0,
     ):
@@ -160,8 +167,8 @@ class BudgetForcingController:
             prompt: Input text (string). Should include the think_start
                 marker at the end to begin the thinking phase.
             max_thinking_tokens: Thinking token budget. Default 2048.
-            num_wait_extensions: How many times to extend thinking by
-                suppressing the end-of-thinking token. Default 0.
+            num_suppressions: How many times to suppress the end-of-thinking
+                token, forcing the model to keep reasoning. Default 0.
             max_new_tokens: Maximum new tokens to generate. Default 1024.
             temperature: Sampling temperature. 0.0 = greedy. Default 0.0.
 
@@ -171,14 +178,15 @@ class BudgetForcingController:
                 thinking_tokens (int): Count of tokens in the thinking
                     portion (between think_start and think_end).
                 answer (str): Extracted answer text.
-                extensions_used (int): How many extensions were applied.
+                suppressions_used (int): How many times end-of-thinking was
+                    suppressed, extending reasoning.
                 forced_end (bool): Whether the end was forced by budget.
         """
         processor = BudgetForcingLogitsProcessor(
             tokenizer=self.tokenizer,
             think_end_str=self._think_end_str,
             max_thinking_tokens=max_thinking_tokens,
-            num_wait_extensions=num_wait_extensions,
+            num_suppressions=num_suppressions,
         )
 
         inputs = self.tokenizer(prompt, return_tensors="pt").to(
@@ -203,7 +211,7 @@ class BudgetForcingController:
             "full_output": full_output,
             "thinking_tokens": self._count_thinking_tokens(full_output),
             "answer": self._extract_answer(full_output),
-            "extensions_used": processor.extensions_done,
+            "suppressions_used": processor.suppressions_done,
             "forced_end": processor.force_end,
         }
 
