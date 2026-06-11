@@ -62,29 +62,44 @@ def load_s1k(hf_token):
 
 
 def filter_quality(items):
-    """Remove samples with empty question, trace, or solution.
+    """Remove samples with empty or insufficient content.
 
-    Note: s1K raw data does NOT contain <|im_start|>think / <|im_start|>answer
-    markers — those are inserted by format_sample(). The quality check here
-    simply validates that all content fields are present and non-empty.
+    Validates that question, thinking trajectory, and solution are present
+    and non-empty. The thinking trajectory must have reasonable length (>50
+    chars) to be a meaningful reasoning trace.
+
+    Handles both normalized (trace) and raw (thinking_trajectories,
+    reasoning_trace) field names.
     """
     kept = []
     dropped = 0
     for item in items:
         q = (item.get("question") or "").strip()
-        trace = (item.get("trace") or "").strip()
+
+        # Handle both normalized and raw field names
+        trace = item.get("trace") or ""
+        if not trace:
+            trace = item.get("thinking_trajectories") or ""
+            if isinstance(trace, list):
+                trace = trace[0] if trace else ""
+        if not trace:
+            trace = item.get("reasoning_trace") or ""
+        trace = trace.strip()
+
         sol = (item.get("solution") or "").strip()
 
-        if not q or not trace or not sol:
+        if not q or len(trace) <= 50 or not sol:
             dropped += 1
             continue
 
+        # Normalize: ensure "trace" key exists for downstream
+        item["trace"] = trace
         kept.append(item)
     print(f"[quality] kept {len(kept)}, dropped {dropped}")
     return kept
 
 
-def filter_difficulty(items, model_name="Qwen/Qwen2.5-7B-Instruct", device="cuda"):
+def filter_difficulty(items, model_name="Qwen/Qwen2.5-7B-Instruct", device=None):
     """Remove samples the base model already gets right. Keeps only hard questions.
 
     Uses batch generation with temperature=0 for deterministic eval.
@@ -93,7 +108,9 @@ def filter_difficulty(items, model_name="Qwen/Qwen2.5-7B-Instruct", device="cuda
     from transformers import AutoModelForCausalLM, AutoTokenizer
     import torch
 
-    print(f"[difficulty] loading {model_name} for zero-shot eval...")
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"[difficulty] loading {model_name} for zero-shot eval (device={device})...")
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, device_map="auto",
@@ -136,22 +153,32 @@ def filter_difficulty(items, model_name="Qwen/Qwen2.5-7B-Instruct", device="cuda
     return hard_items
 
 
+def _extract_boxed(text: str) -> str | None:
+    """Extract content inside \\boxed{...}, handling nested braces."""
+    match = re.search(r'\\boxed\s*\{', text)
+    if not match:
+        return None
+    start = match.end() - 1  # position of {
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == '{':
+            depth += 1
+        elif text[i] == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start+1:i].strip()
+    return None
+
+
 def check_correctness(reference_solution, model_answer):
     """Check if model answer matches reference. Extracts \\boxed{...} and normalizes."""
-    # Try to extract \\boxed{...} from model answer
-    boxed = re.findall(r'\\boxed\{([^}]+)\}', model_answer)
-    if boxed:
-        model_final = boxed[-1].strip()
-    else:
+    model_final = _extract_boxed(model_answer)
+    if model_final is None:
         # Fallback: last non-empty line
         lines = [l.strip() for l in model_answer.strip().split('\n') if l.strip()]
         model_final = lines[-1] if lines else model_answer.strip()
 
-    ref_boxed = re.findall(r'\\boxed\{([^}]+)\}', reference_solution)
-    if ref_boxed:
-        ref_final = ref_boxed[-1].strip()
-    else:
-        ref_final = reference_solution.strip()
+    ref_final = _extract_boxed(reference_solution) or reference_solution.strip()
 
     # Normalize and compare
     def normalize(s):
@@ -278,5 +305,48 @@ def main():
     print(f"[dataset] Metadata saved to {meta_path}")
 
 
+def run_tests():
+    """Quick unit tests for core functions."""
+    import sys
+
+    # Test _extract_boxed
+    assert _extract_boxed(r'\boxed{42}') == '42', "simple boxed failed"
+    assert _extract_boxed(r'\boxed{\frac{1}{2}}') == r'\frac{1}{2}', "nested braces failed"
+    assert _extract_boxed(r'\boxed{42.0 \pm 0.5}') == r'42.0 \pm 0.5', "braces in content failed"
+    assert _extract_boxed('no boxed here') is None, "no boxed should return None"
+    print("  _extract_boxed: 4/4 passed")
+
+    # Test check_correctness
+    assert check_correctness(r'\boxed{42}', r'\boxed{42}') == True, "exact match failed"
+    assert check_correctness(r'\boxed{42}', r'\boxed{43}') == False, "mismatch should fail"
+    print("  check_correctness: 2/2 passed")
+
+    # Test format_sample
+    item = {"question": "What is 1+1?", "thinking_trajectories": ["Let me think..."]}
+    formatted = format_sample(item)
+    assert "<|im_start|>user" in formatted
+    assert "<|im_start|>think" in formatted
+    assert "<|im_start|>answer" in formatted
+    print("  format_sample: 3/3 passed")
+
+    # Test filter_quality
+    good = [
+        {"question": "q1", "thinking_trajectories": ["a" * 100], "solution": "sol1"},
+        {"question": "q2", "thinking_trajectories": ["b" * 100], "solution": "sol2"},
+    ]
+    bad = [
+        {"question": "", "thinking_trajectories": [""], "solution": ""},
+    ]
+    result = filter_quality(good + bad)
+    assert len(result) == 2, f"expected 2 good, got {len(result)}"
+    print("  filter_quality: 1/1 passed")
+
+    print("All tests passed!")
+
+
 if __name__ == "__main__":
-    main()
+    # Allow --test to run tests instead of main pipeline
+    if "--test" in sys.argv:
+        run_tests()
+    else:
+        main()
