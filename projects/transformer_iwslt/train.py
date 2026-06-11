@@ -15,7 +15,7 @@ from tokenizers import Tokenizer, models, trainers, pre_tokenizers
 import sacrebleu
 
 from model import build_transformer, Transformer
-from checkpoint import save_checkpoint, load_checkpoint, ensure_checkpoint_dir
+from checkpoint import save_checkpoint, load_checkpoint, ensure_checkpoint_dir, save_weights
 
 
 # --- Constants ---
@@ -485,11 +485,18 @@ def main():
         ckpt_path = os.path.join(ckpt_dir, f"checkpoint_epoch{epoch}.pt")
         save_checkpoint(ckpt_path, model, optimizer, scheduler, epoch,
                         train_loss, val_loss, bleu, tokens_processed, wall_time_s, config)
-        # Remove older checkpoint (keep last 2)
+        # Weights-only copy for fast proxy download (~120MB vs ~1GB)
+        w_path = os.path.join(ckpt_dir, f"weights_epoch{epoch}.pt")
+        save_weights(w_path, model, epoch,
+                     {"train_loss": train_loss, "val_loss": val_loss, "bleu": bleu},
+                     config)
+        # Remove older checkpoints (keep last 2)
         if epoch > 2:
-            old = os.path.join(ckpt_dir, f"checkpoint_epoch{epoch-2}.pt")
-            if os.path.exists(old):
-                os.remove(old)
+            for old_epoch in [epoch - 2]:
+                for prefix in ["checkpoint_epoch", "weights_epoch"]:
+                    old = os.path.join(ckpt_dir, f"{prefix}{old_epoch}.pt")
+                    if os.path.exists(old):
+                        os.remove(old)
 
         t0 = time.time()
 

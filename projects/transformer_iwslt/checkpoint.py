@@ -63,3 +63,13 @@ def ensure_checkpoint_dir(base: str = "/content") -> str:
     path = os.path.join(base, "checkpoints")
     os.makedirs(path, exist_ok=True)
     return path
+
+
+def save_weights(path: str, model: torch.nn.Module, epoch: int, metrics: dict, config: dict):
+    """Save weights-only checkpoint (small, for proxy download). ~120MB vs ~1GB full."""
+    torch.save({
+        "model_state": model.state_dict(),
+        "epoch": epoch,
+        "metrics": metrics,
+        "config": config,
+    }, path)
