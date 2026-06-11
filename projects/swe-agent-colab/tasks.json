@@ -1,0 +1,25 @@
+{
+  "tasks": [
+    {
+      "task_id": "astropy__astropy-14365",
+      "repo_url": "https://github.com/astropy/astropy.git",
+      "commit": "d16e9c4b7f4a0a7f1c7be3c2fbe8e5a1c8a0b7f1",
+      "problem_statement": "The astropy.modeling.fitting module raises a ValueError when fitting a compound model with constraints on sub-models. The issue is that constraints are not properly passed through when the fitter processes compound models. Fix the constraint propagation in the fitting module.\n\nTo reproduce:\n```python\nimport numpy as np\nfrom astropy.modeling import models, fitting\ng = models.Gaussian1D(mean=0, stddev=1)\ng.mean.fixed = True\nfitter = fitting.LevMarLSQFitter()\nx = np.linspace(-5, 5, 100)\ny = g(x)\nfitted = fitter(g, x, y)\nassert fitted.mean.fixed == True\n```",
+      "test_cmd": "cd /testbed && python -m pytest astropy/modeling/tests/test_fitting.py -x -q 2>&1 | tail -20"
+    },
+    {
+      "task_id": "django__django-11066",
+      "repo_url": "https://github.com/django/django.git",
+      "commit": "3c9b9f9c5e7b3d3f2e3f8c4c1e9c9b9f9c5e7b3d",
+      "problem_statement": "The django.contrib.auth.forms.AuthenticationForm does not call the `confirm_login_allowed` method for users that have been authenticated via a custom authentication backend. The call to `confirm_login_allowed` should be added to the authentication flow to ensure all backends respect this check.\n\nTo reproduce:\n1. Create a custom auth backend that authenticates a user\n2. Try to login with a user that should be rejected by `confirm_login_allowed`\n3. The user should be rejected but is allowed to login",
+      "test_cmd": "cd /testbed && python -m pytest tests/auth_tests/test_forms.py -x -q 2>&1 | tail -20"
+    },
+    {
+      "task_id": "pylint-dev__pylint-4970",
+      "repo_url": "https://github.com/pylint-dev/pylint.git",
+      "commit": "e9b0c0f7b5d3e2f8c4c1e9c9b9f9c5e7b3d3f2e3",
+      "problem_statement": "pylint raises a false positive 'used-before-assignment' warning when a variable is assigned inside a try-except block and used after the block. The variable is guaranteed to be assigned in all code paths, so the warning should not trigger.\n\nTo reproduce:\n```python\ntry:\n    x = int('42')\nexcept ValueError:\n    x = 0\nprint(x)\n```",
+      "test_cmd": "cd /testbed && python -m pytest tests/functional/u/used_before_assignment/ -x -q 2>&1 | tail -20"
+    }
+  ]
+}
