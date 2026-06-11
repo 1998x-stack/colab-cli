@@ -80,10 +80,12 @@ def _clean_tags(path: str):
 
 def load_sentence_pairs(de_path: str, en_path: str) -> list[tuple[str, str]]:
     with open(de_path) as df, open(en_path) as ef:
-        de_lines = [l.strip() for l in df if l.strip()]
-        en_lines = [l.strip() for l in ef if l.strip()]
-    assert len(de_lines) == len(en_lines), f"Mismatch: {len(de_lines)} de vs {len(en_lines)} en"
-    return list(zip(de_lines, en_lines))
+        de_orig = [l.strip() for l in df]
+        en_orig = [l.strip() for l in ef]
+    assert len(de_orig) == len(en_orig), f"Mismatch: {len(de_orig)} de vs {len(en_orig)} en"
+    # Filter in parallel to maintain alignment
+    pairs = [(d, e) for d, e in zip(de_orig, en_orig) if d and e]
+    return pairs
 
 
 # --- Tokenizer ---
@@ -239,20 +241,6 @@ def beam_search(
         tokens = tokens[:tokens.index(eos_idx)]
     return tokens[1:]  # skip SOS
 
-
-def _greedy_decode(model, enc_out, src_mask, max_len, eos_idx, device):
-    """Beam=1 fast path."""
-    tokens = [SOS]
-    for _ in range(max_len - 1):
-        tgt = torch.tensor([tokens], device=device)
-        tgt_mask = Transformer.create_causal_mask(len(tokens), device)
-        dec_out = model.decoder(tgt, enc_out, src_mask, tgt_mask)
-        logits = model.out_proj(dec_out[:, -1, :])
-        next_tok = logits.argmax(-1).item()
-        tokens.append(next_tok)
-        if next_tok == eos_idx:
-            break
-    return tokens[1:]  # skip SOS
 
 
 # --- BLEU Evaluation ---
@@ -418,8 +406,8 @@ def main():
             optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
             scheduler.step()
+            optimizer.step()
 
             total_loss += loss.item()
             n_batches += 1
