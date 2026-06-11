@@ -119,25 +119,36 @@ def train_tokenizer(
     return tokenizer
 
 
-# --- Dataset ---
+# --- Dataset (pre-tokenized for speed) ---
 
 class TranslationDataset(Dataset):
-    def __init__(self, pairs: list[tuple[str, str]], tokenizer: Tokenizer, max_len: int = 128):
-        self.pairs = pairs
-        self.tokenizer = tokenizer
-        self.max_len = max_len
+    """Dataset of pre-tokenized (src_ids, tgt_ids) pairs as tensors."""
+    def __init__(self, pairs: list[tuple[str, str]], tokenizer: Tokenizer, max_len: int = 128,
+                 data_dir: str = "/content/iwslt_data"):
+        cached = os.path.join(data_dir, "train.pt")
+        if os.path.exists(cached):
+            print("[data] Loading pre-tokenized data...")
+            self.data = torch.load(cached, weights_only=False)
+        else:
+            print(f"[data] Pre-tokenizing {len(pairs)} pairs (one-time, ~30s)...")
+            self.data = []
+            for i, (de, en) in enumerate(pairs):
+                src = [SOS] + tokenizer.encode(de).ids[:max_len - 2] + [EOS]
+                tgt = [SOS] + tokenizer.encode(en).ids[:max_len - 2] + [EOS]
+                self.data.append((
+                    torch.tensor(src, dtype=torch.long),
+                    torch.tensor(tgt, dtype=torch.long),
+                ))
+                if (i + 1) % 50000 == 0:
+                    print(f"[data]   {i+1}/{len(pairs)} tokenized...")
+            torch.save(self.data, cached)
+            print(f"[data] Saved tokenized data to {cached}")
 
     def __len__(self):
-        return len(self.pairs)
+        return len(self.data)
 
     def __getitem__(self, idx):
-        de, en = self.pairs[idx]
-        src_ids = [SOS] + self.tokenizer.encode(de).ids[:self.max_len - 2] + [EOS]
-        tgt_ids = [SOS] + self.tokenizer.encode(en).ids[:self.max_len - 2] + [EOS]
-        return (
-            torch.tensor(src_ids, dtype=torch.long),
-            torch.tensor(tgt_ids, dtype=torch.long),
-        )
+        return self.data[idx]
 
 
 def collate_fn(batch: list, pad_idx: int = PAD) -> tuple[torch.Tensor, torch.Tensor]:
