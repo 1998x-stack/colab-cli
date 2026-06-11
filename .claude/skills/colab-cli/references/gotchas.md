@@ -77,33 +77,47 @@ Provisioning a second GPU session raises `TooManyAssignmentsError (412 Precondit
 
 ## Session lifetime
 
-### Sessions auto-terminate
+### Colab official limits vs. observed behavior from China
 
-Free-tier GPU (T4) sessions last **12-15 minutes** of wall-clock time. Not 2-4 hours — that's the best case for CPU or Pro. GPU sessions are aggressively terminated. There is no warning. All files are lost.
+**Official free-tier limits**: 12h max session, ~90min idle timeout. GPU quota is dynamic — heavy usage triggers 12-24h cooldown before GPU is available again.
 
-**Mitigation:**
-- Keep the full pipeline under 10 minutes: pip install (60-90s) + downloads + experiment
-- Pre-download data and models locally when possible, upload to VM
-- Download artifacts immediately after generation
-- For anything longer, split across multiple sessions or upgrade to Colab Pro
-- `colab run` is one-shot (provision → run → teardown) — fine for batch jobs, but results must be uploaded to Drive or external storage from within the script since the session is destroyed after completion
+**Observed from China**: `colab exec` frequently drops after ~12-15 min of wall-clock time. This is NOT Colab killing the session — it's the WebSocket connection dying through the SOCKS5 proxy. The session itself (and any detached training) survives, but interactive exec becomes unreachable.
+
+The keep-alive daemon (auto-spawned by `colab new`, calls `KeepAliveAssignment` RPC via REST every 60s, max 24h) prevents idle timeout. But it uses REST API (`colab.pa.googleapis.com`), not WebSocket — so it does nothing for exec stability.
+
+See `docs/websocket-stability-analysis.md` for the full root-cause analysis.
+
+### Why exec drops: two-path architecture
+
+Colab uses separate network paths:
+
+| Path | Protocol | Library | Proxy support |
+|------|----------|---------|--------------|
+| REST (keep-alive, new, stop) | HTTPS | `requests` | Auto-detects `HTTP_PROXY`/`HTTPS_PROXY`, supports `socks5://` |
+| WebSocket (exec) | WSS | `websocket-client` | Does NOT pass proxy params; `proxy_type` defaults to `"http"` |
+
+`KernelWebSocketClient._run_websocket()` calls `run_forever()` without proxy parameters. The library reads `https_proxy` env var but defaults `proxy_type="http"`, incompatible with SOCKS5 proxies.
+
+**Recommended config:** `HTTPS_PROXY=socks5://127.0.0.1:7890` (REST through SOCKS5) + `no_proxy="*.colab.dev,*.prod.colab.dev"` (WebSocket direct). Flip if direct fails.
 
 ### Free tier sessions can die in under 5 minutes after connection errors
 
-After `RuntimeError: Connection was lost` or `TimeoutError` during exec, the session is often pruned on the next `colab sessions` check — much faster than the typical 2-4 hour window. Connection errors appear to accelerate termination.
+After `RuntimeError: Connection was lost` or `TimeoutError` during exec, the session is often pruned on the next `colab sessions` check. Connection errors appear to accelerate termination.
 
 **Mitigation:**
 - Minimize exec failures — use detached bootstrap scripts (see Network & proxy section)
 - If exec fails, immediately check with `colab sessions` and re-provision if needed
 - Don't assume the session survived just because it was created 2 minutes ago
 
-### Free tier GPU sessions die in 12-15 minutes
+### GPU quota exhaustion
 
-The 2-4 hour window is for CPU/Pro, not free GPU. Free-tier T4 GPU sessions **consistently die in 12-15 minutes** of wall-clock time, even mid-execution with no errors. This is the norm, not an edge case. From 7 provisioning attempts in one session, 4 sessions died before completing a ~10 min pipeline.
+After sustained GPU usage, Colab may deny further GPU access with `TooManyAssignmentsError`. Cooldown: 12-24h for light usage, potentially days for heavy usage.
 
-Idle time during debugging burns the clock just as fast as active compute.
-
-**Mitigation:** Fix bugs locally, then provision a fresh session and upload+launch immediately. Don't spend time iterating on bug fixes after provisioning — the clock is ticking.
+**Mitigation:**
+- Switch to another account (`cb`, `cc`, `clb`) — each has independent GPU quota
+- Use Kaggle Notebooks as fallback (30h/week GPU, transparent quota)
+- Fix bugs locally, provision + upload + launch immediately — don't debug on the VM
+- `colab run` is one-shot (provision → run → teardown) — fine for batch jobs
 
 ### Stale local session cache
 
@@ -138,31 +152,39 @@ With `start_new_session=True`, the child gets its own process group and session,
 
 ### Proxy is required from China
 
-The Colab API (`colab.research.google.com`) and kernel proxy (`*.colab.dev`) are Google services blocked in mainland China. Route through a local proxy (Clash/Meta, mixed-port 7890) using env vars:
+The Colab API (`colab.pa.googleapis.com` for REST, `*.prod.colab.dev` for WebSocket) are Google services blocked in mainland China. Route through a local proxy (Clash/Meta, mixed-port 7890).
+
+**Two separate network paths** with different proxy behavior — see the next section for the root cause. The recommended config:
 
 ```bash
-export HTTPS_PROXY=http://127.0.0.1:7890
-export HTTP_PROXY=http://127.0.0.1:7890
-export ALL_PROXY=socks5://127.0.0.1:7890
-```
-
-`HTTPS_PROXY`/`HTTP_PROXY` covers Python `requests` (control-plane API calls). `ALL_PROXY=socks5://` is needed for WebSocket connections (kernel runtime). Without these, all `colab` commands fail with `SSLError: UNEXPECTED_EOF_WHILE_READING`.
-
-### Proxy + WebSocket is unstable — try both with and without no_proxy
-
-The kernel WebSocket (`wss://*.colab.dev`) sometimes breaks through the SOCKS5 proxy. If `colab exec` fails with `RuntimeError: Connection was lost`, try again with `no_proxy` set:
-
-```bash
-export HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 ALL_PROXY=socks5://127.0.0.1:7890
-# Try 1: all through proxy
-colab exec -s <name> ...
-
-# Try 2: colab.dev direct (if Try 1 gets "Connection was lost")
+export HTTPS_PROXY=socks5://127.0.0.1:7890
+export HTTP_PROXY=socks5://127.0.0.1:7890
 export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
-colab exec -s <name> ...
 ```
 
-The correct combination varies per session — just flip and retry.
+Without proxy env vars, all `colab` commands fail with `SSLError: UNEXPECTED_EOF_WHILE_READING`.
+
+### Proxy + WebSocket is unstable — the two-path root cause
+
+The kernel WebSocket (`wss://*.colab.dev`) and REST API (`colab.pa.googleapis.com`) use **different network libraries** with different proxy behavior:
+
+- **REST** uses `requests` — reads `HTTP_PROXY`/`HTTPS_PROXY`, supports `socks5://` prefix
+- **WebSocket** uses `websocket-client` — `KernelWebSocketClient._run_websocket()` calls `run_forever()` **without proxy parameters**. The library reads `https_proxy` but defaults `proxy_type="http"`, which is incompatible with SOCKS5.
+
+This means `ALL_PROXY=socks5://...` correctly proxies `colab new`/`colab stop` but silently fails to proxy `colab exec`'s WebSocket. The WebSocket gets a raw TCP connection that may be blocked by GFW or misinterpreted by the HTTP proxy handler.
+
+**Recommended config** — REST through SOCKS5, WebSocket direct:
+```bash
+export HTTPS_PROXY=socks5://127.0.0.1:7890
+export HTTP_PROXY=socks5://127.0.0.1:7890
+export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
+```
+
+If WebSocket direct fails, flip: remove `no_proxy`, use `HTTPS_PROXY=http://...` (WebSocket treated as HTTP CONNECT tunnel by the library).
+
+The correct combination varies per session — flip and retry.
+
+See `docs/websocket-stability-analysis.md` for the full root-cause analysis with source code references.
 
 ### SSL errors are usually transient
 
@@ -366,21 +388,61 @@ For Colab T4, the pragmatic options are: (a) use `vllm >=0.10, <0.11` with `--ex
 
 ## File management
 
-### `colab upload` can't create subdirectories
+### `colab upload` creates a FILE (not a directory) when path doesn't exist
 
-Uploading to `/content/strategies/cot.py` when `strategies/` doesn't exist on the VM returns HTTP 500. `colab upload` does not auto-create parent directories on the VM.
+When uploading to `/content/myproject/script.py` and `/content/myproject/` doesn't exist, `colab upload` creates a **file** named `/content/myproject` containing the first uploaded script. All subsequent uploads to `/content/myproject/...` **overwrite** that same file — they don't create a directory.
 
-**Fix:** Upload flat to `/content/` root, then create directories and move files via exec:
+**Symptoms:**
+- First upload to `/content/s1-t4/budget_forcing.py` → creates file `/content/s1-t4` (not directory)
+- Second upload to `/content/s1-t4/train.py` → overwrites `/content/s1-t4` file
+- Third upload → overwrites again
+- After all uploads: `/content/s1-t4` is a single file (the last uploaded script), not a directory with multiple scripts
+- Any code that expects `/content/s1-t4/` to be a directory fails with `NotADirectoryError`
+
+**Fix:** Upload flat to `/content/` root, then create directories and move files via exec. But the better fix is to **skip upload entirely** — use the base64 embed pattern below for multi-file projects.
 
 ```bash
-# Upload to root:
+# Upload to root (safe — /content/ always exists):
 colab upload local.py /content/cot.py
 
 # Create dir and move:
 echo 'import os, shutil; os.makedirs("/content/strategies", exist_ok=True); shutil.move("/content/cot.py", "/content/strategies/cot.py")' | colab exec -s <name>
 ```
 
-Or use a monolithic script that writes all files inline — no uploads needed for multi-file projects.
+If this has already happened, fix on the VM:
+```bash
+echo 'import os; os.remove("/content/s1-t4"); os.makedirs("/content/s1-t4", exist_ok=True)' | colab exec -s <name>
+```
+
+### Multi-file deploy: use base64 embed, not upload
+
+`colab upload` goes through the **WebSocket** path (same as `colab exec`), meaning it suffers the same China-proxy instability. For projects with multiple files, skip upload entirely — generate a Python script that embeds all project files as base64 and writes them to `/content/`:
+
+```python
+# On local machine, generate the deploy script:
+import os, base64
+
+proj_dir = "projects/my-project"
+lines = ['import os, base64',
+         'os.makedirs("/content/my-project/logs", exist_ok=True)',
+         'os.makedirs("/content/my-project/checkpoints", exist_ok=True)']
+
+for fname in os.listdir(proj_dir):
+    if fname.endswith('.py'):
+        with open(os.path.join(proj_dir, fname)) as f:
+            encoded = base64.b64encode(f.read().encode()).decode()
+        lines.append(f'with open("/content/{fname}", "w") as f:')
+        lines.append(f'    f.write(base64.b64decode("{encoded}").decode())')
+        lines.append(f'print("Written: /content/{fname}")')
+
+with open('/tmp/deploy_scripts.py', 'w') as f:
+    f.write('\n'.join(lines))
+
+# Deploy in a single exec (one WebSocket call, returns in seconds):
+colab exec -s <name> -f /tmp/deploy_scripts.py --timeout 60
+```
+
+This pattern works because `colab exec -f` sends a single script for execution — it doesn't need the WebSocket to stay alive for multiple uploads. The base64 overhead is ~33%, fine for scripts totaling <100KB. For large data files (>1MB), generate them on the VM directly (download from HF, run a data prep script, etc.).
 
 ### colab ls is your debug tool
 

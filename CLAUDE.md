@@ -69,8 +69,10 @@ See kaggle-cli skill for multi-account management, kernel workflows, and GPU com
 
 Colab uses **two separate network paths** (see `docs/websocket-stability-analysis.md`):
 
-- **REST API** (`colab.pa.googleapis.com`): `colab new`, `colab stop`, keep-alive. Uses `requests` — auto-detects `HTTP_PROXY`/`HTTPS_PROXY`.
-- **WebSocket** (`*.prod.colab.dev`): `colab exec`. Uses `websocket-client` — does NOT pass proxy params, can't parse `socks5://` from env vars.
+- **REST API** (`colab.pa.googleapis.com`): `colab new`, `colab stop`, `colab sessions`, `colab download`, keep-alive. Uses `requests` — auto-detects `HTTP_PROXY`/`HTTPS_PROXY`.
+- **WebSocket** (`*.prod.colab.dev`): `colab exec`, `colab upload`, `colab ls`. Uses `websocket-client` — does NOT pass proxy params, can't parse `socks5://` from env vars.
+
+**Critical:** `colab upload` goes through WebSocket — it will fail with 500 errors from China when the exec WebSocket is unstable. For multi-file projects, use the base64 embed pattern: generate a Python script that writes all files to `/content/` and exec that single script. See colab-cli gotchas.md §"Multi-file deploy: use base64 embed, not upload".
 
 **Recommended config** — REST through SOCKS5 proxy, WebSocket direct:
 
