@@ -398,6 +398,7 @@ def main():
 
     ckpt_dir = ensure_checkpoint_dir(args.output_dir)
     criterion = nn.CrossEntropyLoss(ignore_index=PAD, label_smoothing=0.0)
+    scaler = torch.amp.GradScaler("cuda") if device.type == "cuda" else None
     t0 = time.time()
 
     for epoch in range(start_epoch + 1, args.epochs + 1):
@@ -416,14 +417,23 @@ def main():
             tgt_mask = (Transformer.create_padding_mask(PAD, tgt_in) |
                         Transformer.create_causal_mask(tgt_in.size(1), device))
 
-            logits = model(src, tgt_in, src_mask, tgt_mask)
-            loss = criterion(logits.reshape(-1, logits.size(-1)), tgt_out.reshape(-1))
-
             optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            if scaler is not None:
+                with torch.amp.autocast("cuda"):
+                    logits = model(src, tgt_in, src_mask, tgt_mask)
+                    loss = criterion(logits.reshape(-1, logits.size(-1)), tgt_out.reshape(-1))
+                scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                logits = model(src, tgt_in, src_mask, tgt_mask)
+                loss = criterion(logits.reshape(-1, logits.size(-1)), tgt_out.reshape(-1))
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                optimizer.step()
             scheduler.step()
-            optimizer.step()
 
             total_loss += loss.item()
             n_batches += 1
