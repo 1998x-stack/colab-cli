@@ -19,31 +19,57 @@ from checkpoint import save_checkpoint, load_checkpoint, ensure_checkpoint_dir
 
 
 # --- Constants ---
-# Raw IWSLT 2017 De-En files from HuggingFace CDN (no auth needed)
-IWSLT_DE = "https://huggingface.co/datasets/IWSLT/iwslt2017/resolve/main/data/de-en/train.de-en.de"
-IWSLT_EN = "https://huggingface.co/datasets/IWSLT/iwslt2017/resolve/main/data/de-en/train.de-en.en"
+# IWSLT 2017 De→En ZIP from HuggingFace CDN (no auth needed)
+IWSLT_ZIP_URL = "https://huggingface.co/datasets/IWSLT/iwslt2017/resolve/main/data/2017-01-trnted/texts/de/en/de-en.zip"
 PAD, SOS, EOS, UNK = 0, 1, 2, 3
 SPECIAL_TOKENS = ["[PAD]", "[SOS]", "[EOS]", "[UNK]"]
 
 
 def load_iwslt_pairs(data_dir: str) -> list[tuple[str, str]]:
-    """Download and load IWSLT'17 De-En from HF CDN raw files."""
+    """Download and load IWSLT'17 De-En from HF CDN ZIP file."""
+    import zipfile
     os.makedirs(data_dir, exist_ok=True)
+    zip_path = os.path.join(data_dir, "de-en.zip")
     de_path = os.path.join(data_dir, "train.de")
     en_path = os.path.join(data_dir, "train.en")
 
-    for url, path in [(IWSLT_DE, de_path), (IWSLT_EN, en_path)]:
-        if not os.path.exists(path):
-            print(f"[data] Downloading {os.path.basename(path)} from HF CDN...")
+    if not os.path.exists(de_path) or not os.path.exists(en_path):
+        if not os.path.exists(zip_path):
+            print(f"[data] Downloading IWSLT ZIP (~18MB)...")
             for attempt in range(3):
                 try:
-                    urllib.request.urlretrieve(url, path)
+                    urllib.request.urlretrieve(IWSLT_ZIP_URL, zip_path)
                     break
                 except Exception as e:
                     if attempt == 2:
                         raise
                     print(f"[data] Retry {attempt+1}/3: {e}")
                     time.sleep(2)
+
+        print("[data] Extracting ZIP...")
+        with zipfile.ZipFile(zip_path) as zf:
+            # Find train files (IWSLT17.*.de-en.de / .de-en.en)
+            de_member = en_member = None
+            for name in zf.namelist():
+                if name.endswith(".de-en.de") and "IWSLT17" in name and "train" in name.lower():
+                    de_member = name
+                elif name.endswith(".de-en.en") and "IWSLT17" in name and "train" in name.lower():
+                    en_member = name
+            if de_member is None or en_member is None:
+                # Try broader match
+                for name in zf.namelist():
+                    if name.endswith(".de") and "train" in name.lower():
+                        de_member = name
+                    elif name.endswith(".en") and "train" in name.lower():
+                        en_member = name
+            if de_member is None or en_member is None:
+                raise RuntimeError(f"Could not find train files in ZIP. Contents: {zf.namelist()[:20]}")
+
+            # Extract
+            with zf.open(de_member) as src, open(de_path, "wb") as dst:
+                dst.write(src.read())
+            with zf.open(en_member) as src, open(en_path, "wb") as dst:
+                dst.write(src.read())
 
     with open(de_path) as df, open(en_path) as ef:
         de_orig = [l.strip() for l in df]
