@@ -152,6 +152,10 @@ class BudgetForcingController:
         self._think_start_str = think_start_str
         self._think_end_str = think_end_str
         self._answer_end_str = answer_end_str
+        # Pre-compute token IDs for external inspection
+        self.think_end_token_ids = tokenizer.encode(
+            think_end_str, add_special_tokens=False
+        )
 
     def generate(
         self,
