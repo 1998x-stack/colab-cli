@@ -4,7 +4,7 @@ Usage:
     python train.py --exp_id baseline
     python train.py --exp_id baseline --resume /content/checkpoints/ckpt_epoch5.pt
 """
-import argparse, json, math, os, sys, time, re, tarfile, urllib.request
+import argparse, json, math, os, sys, time
 from pathlib import Path
 
 import torch
@@ -13,106 +13,25 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from tokenizers import Tokenizer, models, trainers, pre_tokenizers
 import sacrebleu
+from datasets import load_dataset
 
 from model import build_transformer, Transformer
 from checkpoint import save_checkpoint, load_checkpoint, ensure_checkpoint_dir
 
 
 # --- Constants ---
-IWSLT_URL = "https://wit3.fbk.eu/archive/2014-01/texts/de/en/de-en.tgz"
-IWSLT_URL_FALLBACK = "https://raw.githubusercontent.com/neychev/small_DL_repo/master/datasets/IWSLT14/de-en.tgz"
 PAD, SOS, EOS, UNK = 0, 1, 2, 3
 SPECIAL_TOKENS = ["[PAD]", "[SOS]", "[EOS]", "[UNK]"]
 
 
-# --- IWSLT Data Loading ---
+# --- IWSLT Data Loading (via HuggingFace datasets) ---
 
-def download_iwslt(data_dir: str) -> tuple[str, str]:
-    """Download and extract IWSLT'14 De-En. Returns (de_path, en_path)."""
-    os.makedirs(data_dir, exist_ok=True)
-    tgz_path = os.path.join(data_dir, "de-en.tgz")
-
-    if not os.path.exists(tgz_path):
-        for url in [IWSLT_URL, IWSLT_URL_FALLBACK]:
-            print(f"[data] Downloading IWSLT'14 De-En from {url} ...")
-            try:
-                urllib.request.urlretrieve(url, tgz_path)
-                # Validate it's a real gzip file (not an HTML error page)
-                with open(tgz_path, "rb") as f:
-                    magic = f.read(2)
-                if magic == b"\x1f\x8b":
-                    break
-                print(f"[data] WARNING: Downloaded file is not gzip (magic={magic!r}), trying next URL...")
-                os.remove(tgz_path)
-            except Exception as e:
-                print(f"[data] Download failed: {e}, trying next URL...")
-                if os.path.exists(tgz_path):
-                    os.remove(tgz_path)
-        else:
-            raise RuntimeError(
-                "Failed to download IWSLT dataset from all sources. "
-                "The IWSLT server may be unreachable from this VM."
-            )
-
-    de_path = os.path.join(data_dir, "train.de")
-    en_path = os.path.join(data_dir, "train.en")
-
-    if not os.path.exists(de_path) or not os.path.exists(en_path):
-        print("[data] Extracting...")
-        try:
-            mode = "r:gz"
-            with open(tgz_path, "rb") as f:
-                if f.read(2) != b"\x1f\x8b":
-                    mode = "r:"  # plain tar
-            tar = tarfile.open(tgz_path, mode)
-        except Exception:
-            tar = tarfile.open(tgz_path, "r:")  # try plain tar
-
-        with tar:
-            de_member = en_member = None
-            for member in tar.getmembers():
-                name = member.name
-                if "train.tags.de-en.de" in name:
-                    de_member = member
-                elif "train.tags.de-en.en" in name:
-                    en_member = member
-            if de_member is None or en_member is None:
-                all_names = [m.name for m in tar.getmembers()]
-                print(f"[data] Archive contents: {all_names[:20]}")
-                raise RuntimeError("Could not find train.de/train.en in archive")
-
-            de_member.name = "train.de"
-            en_member.name = "train.en"
-            tar.extract(de_member, data_dir)
-            tar.extract(en_member, data_dir)
-
-            _clean_tags(de_path)
-            _clean_tags(en_path)
-
-    return de_path, en_path
-
-
-def _clean_tags(path: str):
-    """Remove XML tags like <url>, <keywords>, etc. from IWSLT files."""
-    with open(path) as f:
-        lines = f.readlines()
-    tag_re = re.compile(r"<[^>]+>")
-    cleaned = []
-    for line in lines:
-        line = tag_re.sub("", line).strip()
-        if line:
-            cleaned.append(line)
-    with open(path, "w") as f:
-        f.write("\n".join(cleaned))
-
-
-def load_sentence_pairs(de_path: str, en_path: str) -> list[tuple[str, str]]:
-    with open(de_path) as df, open(en_path) as ef:
-        de_orig = [l.strip() for l in df]
-        en_orig = [l.strip() for l in ef]
-    assert len(de_orig) == len(en_orig), f"Mismatch: {len(de_orig)} de vs {len(en_orig)} en"
-    # Filter in parallel to maintain alignment
-    pairs = [(d, e) for d, e in zip(de_orig, en_orig) if d and e]
+def load_iwslt_pairs() -> list[tuple[str, str]]:
+    """Load IWSLT'17 De-En sentence pairs via HuggingFace datasets."""
+    print("[data] Loading IWSLT'17 De-En from HuggingFace datasets...")
+    ds = load_dataset("iwslt2017", "iwslt2017-de-en", split="train", trust_remote_code=False)
+    pairs = [(item["translation"]["de"], item["translation"]["en"]) for item in ds]
+    print(f"[data] Loaded {len(pairs)} sentence pairs")
     return pairs
 
 
@@ -343,8 +262,7 @@ def main():
     print(f"[train] Device: {device}, Exp: {args.exp_id}")
 
     # --- Data ---
-    de_path, en_path = download_iwslt(args.data_dir)
-    pairs = load_sentence_pairs(de_path, en_path)
+    pairs = load_iwslt_pairs()
 
     tok_path = os.path.join(args.data_dir, "tokenizer.json")
     if os.path.exists(tok_path):
