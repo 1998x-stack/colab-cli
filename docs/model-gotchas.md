@@ -242,3 +242,81 @@ class TranslationDataset(Dataset):
 ### 8. Beam search finished-beam handling
 
 When a beam produces EOS, it must only allow EOS on subsequent steps (force `log_probs[finished, :] = -inf; log_probs[finished, eos_idx] = 0`). Otherwise the beam keeps generating tokens after EOS, wasting compute and diluting scores.
+
+### 9. BLEU evaluation is the hidden bottleneck (hours per epoch)
+
+BLEU eval runs beam search on the entire validation set. With 41K validation pairs × beam_size=4 × max_len=128, each epoch's BLEU eval takes ~3-5 HOURS. The training appears stuck after the first epoch because BLEU never completes.
+
+**Fix:** Use a tiny validation subset (100 sentences) with greedy decode (beam_size=1) during training. This takes ~10s instead of hours. Save proper BLEU with full beam search for final evaluation only.
+
+```python
+val_bleu_ds = TranslationDataset(val_pairs[:100], tokenizer, max_len, name="val_bleu")
+bleu = evaluate(model, val_bleu_loader, tokenizer, device, beam_size=1, max_len=96)
+```
+
+### 10. CUDA OOM during eval — model fits training but not evaluation
+
+T4 has 14.56 GiB VRAM. The model uses ~9.3 GiB during training with batch_size=32. But during BLEU evaluation, beam search creates additional tensors that cause OOM. Also, CUDA memory fragments over time.
+
+**Fixes:**
+- `batch_size=32` (not 64) for training
+- `torch.cuda.empty_cache()` before val_loss and BLEU eval
+- `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` — reduces fragmentation
+- Use beam_size=1 during training eval (smaller memory footprint)
+
+### 11. `flush=True` is essential for subprocess log files
+
+Even with `PYTHONUNBUFFERED=1` and `python -u`, print() output redirected to a file via `subprocess.Popen` can be delayed by minutes. Training appears "stuck at Params: 61,009,920" while actually running (GPU at 77% utilization).
+
+**Fix:** Add `flush=True` to every print:
+```python
+print(f"[train] Params: {n:,}", flush=True)
+print(f"[train] Epoch {e}: loss={l:.3f}", flush=True)
+# Progress every 200 batches
+if n_batches % 200 == 0:
+    print(f"  batch {n_batches}: loss={loss:.3f}", flush=True)
+```
+
+**Verification:** Don't trust log timestamps. Check `nvidia-smi` GPU utilization and `ps aux` CPU time — if GPU >50% and process has been running for minutes, training IS happening.
+
+### 12. Checkpoint download fails above ~600MB through China proxy
+
+Full checkpoint (model weights + Adam optimizer moments) = ~1GB. Proxy connection reliably breaks at ~624MB with `IncompleteRead`. Gzip compression at level 3 only reduces to ~500MB — still too large.
+
+**Fix:** Save TWO checkpoints per epoch:
+1. **Full checkpoint** (`checkpoint_epochN.pt`, gzip, ~500MB) — for training resume on the VM
+2. **Weights-only checkpoint** (`weights_epochN.pt`, ~120-233MB) — for proxy download
+
+```python
+# Full (VM-local resume): model + optimizer + scheduler state
+save_checkpoint(ckpt_path, model, optimizer, scheduler, ...)
+
+# Weights-only (proxy download): model weights + metrics
+save_weights(w_path, model, epoch, metrics, config)
+```
+
+Weights-only is ~233MB for 61M params — downloads reliably through proxy. Full checkpoint is 500MB (gzip) or 1GB (raw).
+
+### 13. Smoke test: verify full pipeline locally before Colab
+
+A 200-pair, 3-epoch smoke test on Colab verifies the entire pipeline in 96 seconds:
+- AMP mixed precision works
+- Beam search works
+- Checkpoint save/load works
+- BLEU evaluation works
+- CUDA OOM doesn't happen at small scale
+
+Run this BEFORE deploying real training — catches 80% of bugs in 2 minutes instead of wasting session cycles.
+
+### 14. Pre-tokenization cache key collision
+
+When multiple `TranslationDataset` instances (train, val, val_bleu) share the same cache path, the val set loads training data. Fix: key each dataset by name.
+
+```python
+# Broken: all datasets share "train.pt"
+cached = os.path.join(data_dir, "train.pt")
+
+# Fixed: each dataset has its own cache
+def __init__(self, ..., name="train"):
+    cached = os.path.join(data_dir, f"{name}.pt")
+```

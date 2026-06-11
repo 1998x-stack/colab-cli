@@ -139,3 +139,44 @@ This project originally targeted IWSLT 2014 but uses IWSLT 2017 because:
 - IWSLT 2014 is behind Google auth wall; IWSLT 2017 is available on HF CDN
 - Same task (TED talks De→En translation), comparable difficulty
 - Both use the same XML-tag format in the official release, but the HF ZIP version has pre-stripped tags
+
+## Verified training metrics (Colab T4, 50K pairs)
+
+| Metric | Baseline (epoch 1) |
+|---|---|
+| Train loss | 25.6 |
+| Val loss | 9.23 |
+| BLEU (100 sentences, greedy) | 0.9 |
+| Wall time | 332s (5.5 min) |
+| GPU memory | ~9.3 GiB |
+| Batch size | 32 |
+
+Full 20-epoch training is expected to reach >25 BLEU (baseline target). Each session gets 1-3 epochs depending on data cache state.
+
+## Post-documentation discoveries
+
+### BLEU evaluation bottleneck
+
+BLEU eval on the full validation set (41K sentences × beam search) takes 3-5 HOURS per epoch. Fixed by evaluating on 100 sentences with greedy decode (beam_size=1). Full BLEU with beam_size=4 only at final evaluation.
+
+### CUDA OOM during eval
+
+Model at batch_size=64 uses 14.5 GiB — triggers OOM during evaluation. Fixed: batch_size=32, `torch.cuda.empty_cache()` before eval, `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
+
+### Log buffering hides training progress
+
+stdout redirected via Popen is buffered even with `PYTHONUNBUFFERED=1`. Training appears "stuck" after model init. Fixed with `flush=True` on all prints and per-200-batch progress indicators. Verify with `nvidia-smi` on the VM.
+
+### Checkpoint download size limit
+
+Full checkpoint (weights + Adam optimizer moments) = ~1GB. Proxy connection breaks at ~624MB. Gzip at level 3 only reduces to ~500MB — still fails. **Weights-only checkpoint** (~233MB) downloads reliably. Both are saved per epoch:
+- `checkpoint_epochN.pt` — full (VM-local resume)
+- `weights_epochN.pt` — weights only (proxy download, ~233MB)
+
+### Smoke test before real training
+
+A 200-pair, 3-epoch test on Colab verifies the entire pipeline in 96 seconds. Catches 80% of bugs before wasting session time. Always run before deploying real training.
+
+### Pre-tokenization cache key collision
+
+Multiple `TranslationDataset` instances (train, val, val_bleu) collided on `train.pt` cache path — val set loaded training data. Fixed by keying cache by dataset name (`train.pt`, `val.pt`, `val_bleu.pt`).

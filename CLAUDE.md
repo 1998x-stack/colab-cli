@@ -5,6 +5,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Codebase map
 
 ```
+.claude/skills/
+├── colab-cli/             # Colab GPU VM management from terminal
+│   ├── SKILL.md             # Full workflow: provision, exec, monitor, multi-account
+│   ├── references/          # gotchas.md (22 items), workflows.md
+│   └── scripts/             # launch.py, check_progress.py, launch_proxy.py
+└── kaggle-cli/            # Kaggle Notebooks GPU training (push model, REST API)
+    ├── SKILL.md             # Full workflow: push, monitor, download, multi-account
+    ├── references/          # gotchas.md (16 items)
+    └── scripts/             # push_and_wait.py, check_progress.py
+
 projects/
 ├── alexnet_imagenette/   # AlexNet faithful reproduction (Imagenette, 10-class)
 │   ├── alexnet.py         # Paper arch + He init, build_alexnet(config) factory
@@ -37,7 +47,25 @@ projects/
 - **Multi-experiment**: Upload `exp_ids.txt` per session; launch.py reads it, passes `--exp_ids` to train.py
 - **Output**: VM `/content/<project>-output/` → download to `projects/<project>/output/`
 
-## Accounts & proxy
+## Accounts
+
+**Colab (4 accounts)** — isolated via `$HOME` directories. See colab-cli skill for full details.
+
+```bash
+colab   # hackxie1998 (default)    cb    # stefaniehu929
+cc      # xbetterdetermine          clb   # xieminghack
+```
+
+**Kaggle (4 accounts)** — tokens in `.kaggle/access_token{1,2,3,4}`. Switch via env var per command:
+
+```bash
+KAGGLE_API_TOKEN="$(cat .kaggle/access_token4)" kaggle kernels push -p ./project  # xieming1998
+KAGGLE_API_TOKEN="$(cat .kaggle/access_token1)" kaggle kernels push -p ./project  # account 1
+```
+
+See kaggle-cli skill for multi-account management, kernel workflows, and GPU compatibility.
+
+## Proxy (Colab only)
 
 Colab uses **two separate network paths** (see `docs/websocket-stability-analysis.md`):
 
@@ -84,6 +112,7 @@ See `docs/` for deep-dive analysis: websocket-stability, session-health-monitori
 
 ## Core workflow
 
+**Colab (interactive, WebSocket):**
 ```bash
 # 1. Provision + mount Drive + upload + launch
 colab new --gpu T4 -s training
@@ -97,6 +126,24 @@ CronCreate cron="*/5 * * * *" prompt="Check session..." durable=true recurring=t
 # 3. Download + cleanup
 colab download /content/<project>-output.tar.gz projects/<project>/output/
 colab stop -s training
+```
+
+**Kaggle (push, REST only):**
+```bash
+# 1. Configure metadata + push (single REST call, returns immediately)
+cat > kernel-metadata.json << EOF
+{"id":"xieming1998/my-training","title":"My Training","code_file":"train.py",
+ "language":"python","kernel_type":"script","is_private":true,
+ "enable_gpu":true,"enable_internet":true,...}
+EOF
+kaggle kernels push -p .
+
+# 2. Monitor (REST polling, no connection to maintain)
+kaggle kernels status xieming1998/my-training
+kaggle kernels logs xieming1998/my-training
+
+# 3. Download output
+kaggle kernels output xieming1998/my-training -p ./output
 ```
 
 ## Checkpoint persistence
@@ -113,6 +160,11 @@ See `docs/drive-mcp-colab-integration.md` for full analysis.
 - `PYTHONUNBUFFERED=1` + `python -u` + `start_new_session=True` in subprocess.Popen
 - `colab exec -f` reads LOCAL files (relative paths), sends to VM. No `-c` flag — use stdin pipe.
 - `colab download` needs tar for dirs: `tar -czf /content/out.tar.gz -C /content dir/`
+- **Log buffering despite PYTHONUNBUFFERED**: stdout to file via Popen can still buffer. Training appears stuck but GPU is active. Add `flush=True` to all print() calls. Add per-N-batch progress prints. Verify with `nvidia-smi`.
+- **Checkpoint downloads >600MB fail through proxy**: Full checkpoint with optimizer state = ~1GB, proxy connection breaks at ~624MB (IncompleteRead). Save a separate **weights-only checkpoint** (~120-233MB) for download, keep full checkpoint for VM-local resume.
+- **BLEU/beam search is the hidden bottleneck**: Beam search eval on full val set takes hours. Use 100-sentence subset with greedy decode for training-time eval.
+- **First session wastes a VM**: Data prep + CUDA JIT = 7-10 min overhead. First epoch rarely completes. Second session (data cached) gets 3-4 epochs. Account for this in session budget.
+- **CUDA OOM during eval even when training fits**: Beam search allocates extra tensors. Use `torch.cuda.empty_cache()` before eval. Set `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
 
 ## Deploy scripts (bash)
 
@@ -206,6 +258,7 @@ VRAM fit (T4 15.6 GB): SmolLM2-1.7B ~12.8 GB. Qwen2.5-3B likely fits. 7B needs A
 - Fit PCA on a sample locally to verify resize → stack doesn't crash
 - Validate data pipeline loads images correctly (check first batch shapes + labels)
 - `grep` the codebase for `load_dataset` — if found, verify HF dataset name still works on Colab's `datasets` version
+- For Kaggle: verify `kernel-metadata.json` has `enable_gpu: true`, `enable_internet: true`, correct `id` slug, and `kernel_type: "script"`
 
 ## Doc protocol
 
@@ -219,12 +272,22 @@ VRAM fit (T4 15.6 GB): SmolLM2-1.7B ~12.8 GB. Qwen2.5-3B likely fits. 7B needs A
 
 ## Kaggle Notebooks (complementary GPU)
 
-Kaggle's push model (REST API) avoids Colab's WebSocket problem entirely. 30h/week GPU (P100 or T4 x2), transparent quota. Use when Colab is unreliable.
+Kaggle's push model (REST API) avoids Colab's WebSocket problem entirely. 30h/week GPU (P100 or T4 x2), transparent quota.
+
+**The kaggle-cli skill (`.claude/skills/kaggle-cli/SKILL.md`) has the full workflow** — push, monitor, download, multi-account, GPU compatibility. Key commands:
 
 ```bash
-kaggle kernels push -p ./project-dir   # push + run (REST call, no long connection)
-kaggle kernels status user/slug        # check status
-kaggle kernels output user/slug -p ./  # download results
+kaggle kernels push -p ./project-dir     # push + run (REST call, no long connection)
+kaggle kernels status user/slug          # check status
+kaggle kernels logs user/slug            # view stdout/stderr
+kaggle kernels output user/slug -p ./    # download results
 ```
+
+**Four accounts** configured via `.kaggle/access_token{1,2,3,4}`. Switch per-command:
+```bash
+KAGGLE_API_TOKEN="$(cat .kaggle/access_token4)" kaggle kernels push -p ./project
+```
+
+**Critical GPU gotcha:** P100 (sm_60) is incompatible with pre-installed PyTorch 2.10.0+cu128. Force-reinstall with CUDA 12.6 at script start. See skill references/gotchas.md.
 
 See `docs/kaggle-notebooks-analysis.md` for full comparison and integration strategy.
