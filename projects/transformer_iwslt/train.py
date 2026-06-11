@@ -19,7 +19,8 @@ from checkpoint import save_checkpoint, load_checkpoint, ensure_checkpoint_dir
 
 
 # --- Constants ---
-IWSLT_URL = "https://wit3.fbk.eu/archive/2014-01//texts/de/en/de-en.tgz"
+IWSLT_URL = "https://wit3.fbk.eu/archive/2014-01/texts/de/en/de-en.tgz"
+IWSLT_URL_FALLBACK = "https://raw.githubusercontent.com/neychev/small_DL_repo/master/datasets/IWSLT14/de-en.tgz"
 PAD, SOS, EOS, UNK = 0, 1, 2, 3
 SPECIAL_TOKENS = ["[PAD]", "[SOS]", "[EOS]", "[UNK]"]
 
@@ -32,15 +33,42 @@ def download_iwslt(data_dir: str) -> tuple[str, str]:
     tgz_path = os.path.join(data_dir, "de-en.tgz")
 
     if not os.path.exists(tgz_path):
-        print(f"[data] Downloading IWSLT'14 De-En from {IWSLT_URL} ...")
-        urllib.request.urlretrieve(IWSLT_URL, tgz_path)
+        for url in [IWSLT_URL, IWSLT_URL_FALLBACK]:
+            print(f"[data] Downloading IWSLT'14 De-En from {url} ...")
+            try:
+                urllib.request.urlretrieve(url, tgz_path)
+                # Validate it's a real gzip file (not an HTML error page)
+                with open(tgz_path, "rb") as f:
+                    magic = f.read(2)
+                if magic == b"\x1f\x8b":
+                    break
+                print(f"[data] WARNING: Downloaded file is not gzip (magic={magic!r}), trying next URL...")
+                os.remove(tgz_path)
+            except Exception as e:
+                print(f"[data] Download failed: {e}, trying next URL...")
+                if os.path.exists(tgz_path):
+                    os.remove(tgz_path)
+        else:
+            raise RuntimeError(
+                "Failed to download IWSLT dataset from all sources. "
+                "The IWSLT server may be unreachable from this VM."
+            )
 
     de_path = os.path.join(data_dir, "train.de")
     en_path = os.path.join(data_dir, "train.en")
 
     if not os.path.exists(de_path) or not os.path.exists(en_path):
         print("[data] Extracting...")
-        with tarfile.open(tgz_path, "r:gz") as tar:
+        try:
+            mode = "r:gz"
+            with open(tgz_path, "rb") as f:
+                if f.read(2) != b"\x1f\x8b":
+                    mode = "r:"  # plain tar
+            tar = tarfile.open(tgz_path, mode)
+        except Exception:
+            tar = tarfile.open(tgz_path, "r:")  # try plain tar
+
+        with tar:
             de_member = en_member = None
             for member in tar.getmembers():
                 name = member.name
