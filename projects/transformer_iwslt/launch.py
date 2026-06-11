@@ -8,7 +8,7 @@ import subprocess, sys, os
 EXP_ID_PATH = "/content/exp_id.txt"
 RESUME_PATH_FILE = "/content/resume_path.txt"
 LOG = "/content/train.log"
-DEPS = ["tokenizers", "sacrebleu", "matplotlib"]
+DEPS = ["tokenizers", "sacrebleu", "matplotlib", "datasets==2.14.0"]
 
 # --- Read experiment ID ---
 with open(EXP_ID_PATH) as f:

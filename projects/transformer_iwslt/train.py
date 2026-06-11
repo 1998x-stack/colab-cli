@@ -4,7 +4,7 @@ Usage:
     python train.py --exp_id baseline
     python train.py --exp_id baseline --resume /content/checkpoints/ckpt_epoch5.pt
 """
-import argparse, json, math, os, sys, time, gzip, io, urllib.request
+import argparse, json, math, os, sys, time
 from pathlib import Path
 
 import torch
@@ -19,44 +19,16 @@ from checkpoint import save_checkpoint, load_checkpoint, ensure_checkpoint_dir
 
 
 # --- Constants ---
-# HuggingFace-hosted raw IWSLT'17 De-En training files
-IWSLT_DE_URL = "https://huggingface.co/datasets/iwslt2017/resolve/main/data/de-en/train.de"
-IWSLT_EN_URL = "https://huggingface.co/datasets/iwslt2017/resolve/main/data/de-en/train.en"
 PAD, SOS, EOS, UNK = 0, 1, 2, 3
 SPECIAL_TOKENS = ["[PAD]", "[SOS]", "[EOS]", "[UNK]"]
 
 
-def _download_file(url: str, dest: str):
-    """Download a file with retries."""
-    for attempt in range(3):
-        try:
-            urllib.request.urlretrieve(url, dest)
-            return
-        except Exception as e:
-            if attempt == 2:
-                raise
-            print(f"[data] Retry {attempt+1}/3 after: {e}")
-            time.sleep(2)
-
-
-def load_iwslt_pairs(data_dir: str) -> list[tuple[str, str]]:
-    """Download and load IWSLT'17 De-En sentence pairs."""
-    os.makedirs(data_dir, exist_ok=True)
-    de_path = os.path.join(data_dir, "train.de")
-    en_path = os.path.join(data_dir, "train.en")
-
-    if not os.path.exists(de_path):
-        print(f"[data] Downloading DE from {IWSLT_DE_URL}...")
-        _download_file(IWSLT_DE_URL, de_path)
-    if not os.path.exists(en_path):
-        print(f"[data] Downloading EN from {IWSLT_EN_URL}...")
-        _download_file(IWSLT_EN_URL, en_path)
-
-    with open(de_path) as df, open(en_path) as ef:
-        de_orig = [l.strip() for l in df]
-        en_orig = [l.strip() for l in ef]
-    assert len(de_orig) == len(en_orig), f"Mismatch: {len(de_orig)} de vs {len(en_orig)} en"
-    pairs = [(d, e) for d, e in zip(de_orig, en_orig) if d and e]
+def load_iwslt_pairs() -> list[tuple[str, str]]:
+    """Load IWSLT'17 De-En via datasets (pinned to 2.14.0 for script support)."""
+    from datasets import load_dataset
+    print("[data] Loading IWSLT'17 De-En (may download ~25MB)...")
+    ds = load_dataset("iwslt2017", "iwslt2017-de-en", split="train", trust_remote_code=False)
+    pairs = [(item["translation"]["de"], item["translation"]["en"]) for item in ds]
     print(f"[data] Loaded {len(pairs)} sentence pairs")
     return pairs
 
@@ -288,7 +260,7 @@ def main():
     print(f"[train] Device: {device}, Exp: {args.exp_id}")
 
     # --- Data ---
-    pairs = load_iwslt_pairs(args.data_dir)
+    pairs = load_iwslt_pairs()
 
     tok_path = os.path.join(args.data_dir, "tokenizer.json")
     if os.path.exists(tok_path):
