@@ -5,182 +5,113 @@
 #   ./deploy.sh              # fresh start — all 3 experiments from epoch 1
 #   ./deploy.sh --resume     # resume from latest checkpoints in output-*/
 #
-# Accounts:
+# Accounts (3 free GPU slots, 1 per account):
 #   colab → baseline   (hackxie1998@gmail.com)
-#   cb    → fixed_pe   (stefaniehu929@gmail.com)
-#   clb   → heads_1    (xieminghack@gmail.com)
-#
-# Each account runs independently with its own checkpoint-resume chain.
+#   cb    → fixed_pe    (stefaniehu929@gmail.com)
+#   clb   → heads_1     (xieminghack@gmail.com)
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT="projects/transformer_iwslt"
+COLAB="$HOME/.local/bin/colab"
+HF_TOKEN="$SCRIPT_DIR/../../.huggingface/access_token"
 MODE="${1:-fresh}"
 
-# --- Experiment configs ---
-declare -A ACCOUNTS=(
-    [baseline]=colab
-    [fixed_pe]=cb
-    [heads_1]=clb
-)
-declare -A SESSIONS=(
-    [baseline]=transformer-baseline
-    [fixed_pe]=transformer-fixedpe
-    [heads_1]=transformer-heads1
-)
-
-FILES_TO_UPLOAD=(
-    "$SCRIPT_DIR/model.py"
-    "$SCRIPT_DIR/train.py"
-    "$SCRIPT_DIR/launch.py"
-    "$SCRIPT_DIR/checkpoint.py"
-)
-
-# ============================================================
-# Step 1: Stop any existing sessions (clean slate for fresh)
-# ============================================================
-echo "=== Step 1: Stopping existing sessions ==="
-for exp in baseline fixed_pe heads_1; do
-    account="${ACCOUNTS[$exp]}"
-    session="${SESSIONS[$exp]}"
-    echo "[$exp] Stopping $session on $account..."
-    $account stop -s "$session" 2>/dev/null || echo "[$exp] No existing session (OK)"
-done
-echo ""
-
-# ============================================================
-# Step 2: Provision 3 GPU sessions (in parallel)
-# ============================================================
-echo "=== Step 2: Provisioning 3 GPU sessions ==="
-for exp in baseline fixed_pe heads_1; do
-    account="${ACCOUNTS[$exp]}"
-    session="${SESSIONS[$exp]}"
+# ---- helper: run a colab command for a specific account ----
+# Usage: colab_for HOME_OVERRIDE session_name command args...
+colab_for() {
+    local home="$1" session="$2"; shift 2
     (
-        echo "[$exp] Provisioning $session on $account..."
-        $account new --gpu T4 -s "$session"
-        echo "[$exp] Provisioned OK"
-    ) &
-done
-wait
-echo ""
+        export HTTPS_PROXY=http://127.0.0.1:7890
+        export HTTP_PROXY=http://127.0.0.1:7890
+        export ALL_PROXY=socks5://127.0.0.1:7890
+        export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
+        [ -n "$home" ] && export HOME="$home"
+        "$COLAB" "$@" -s "$session" 2>/dev/null
+    )
+}
 
-# Verify all sessions are running
-echo "=== Verifying sessions ==="
-colab sessions 2>/dev/null || true
-cb sessions 2>/dev/null || true
-clb sessions 2>/dev/null || true
-echo ""
-
-# ============================================================
-# Step 3: Upload code to all 3 sessions
-# ============================================================
-echo "=== Step 3: Uploading code ==="
-for exp in baseline fixed_pe heads_1; do
-    account="${ACCOUNTS[$exp]}"
-    session="${SESSIONS[$exp]}"
+# ---- helper: provision a session ----
+provision() {
+    local home="$1" session="$2"
     (
-        echo "[$exp] Uploading to $session..."
-        for f in "${FILES_TO_UPLOAD[@]}"; do
-            $account upload "$f" "/content/$(basename "$f")"
+        export HTTPS_PROXY=http://127.0.0.1:7890
+        export HTTP_PROXY=http://127.0.0.1:7890
+        export ALL_PROXY=socks5://127.0.0.1:7890
+        [ -n "$home" ] && export HOME="$home"
+        "$COLAB" stop -s "$session" 2>/dev/null || true
+        sleep 1
+        "$COLAB" new --gpu T4 -s "$session"
+    )
+}
+
+# ---- helper: upload code + token, then launch ----
+deploy() {
+    local home="$1" session="$2" exp_id="$3"
+    (
+        export HTTPS_PROXY=http://127.0.0.1:7890
+        export HTTP_PROXY=http://127.0.0.1:7890
+        export ALL_PROXY=socks5://127.0.0.1:7890
+        export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
+        [ -n "$home" ] && export HOME="$home"
+
+        for f in model.py train.py launch.py checkpoint.py; do
+            "$COLAB" upload "$SCRIPT_DIR/$f" "/content/$f"
         done
-        # Upload exp_id
-        echo "$exp" > /tmp/exp_id_$$.txt
-        $account upload /tmp/exp_id_$$.txt /content/exp_id.txt
-        rm -f /tmp/exp_id_$$.txt
-        echo "[$exp] Upload done"
-    ) &
-done
-wait
-echo ""
+        [ -f "$HF_TOKEN" ] && "$COLAB" upload "$HF_TOKEN" /content/hf_token
+        echo "$exp_id" > "/tmp/exp_${exp_id}.txt"
+        "$COLAB" upload "/tmp/exp_${exp_id}.txt" /content/exp_id.txt
+        rm -f "/tmp/exp_${exp_id}.txt"
 
-# ============================================================
-# Step 4 (resume mode): Upload checkpoints
-# ============================================================
-if [ "$MODE" = "--resume" ]; then
-    echo "=== Step 4: Resume mode — uploading checkpoints ==="
-    for exp in baseline fixed_pe heads_1; do
-        account="${ACCOUNTS[$exp]}"
-        session="${SESSIONS[$exp]}"
-        output_dir="$SCRIPT_DIR/output-${exp}/checkpoints"
-
-        if [ -d "$output_dir" ]; then
-            # Find latest checkpoint
-            latest=$(ls -1 "$output_dir"/checkpoint_epoch*.pt 2>/dev/null | sort -V | tail -1)
-            if [ -n "$latest" ]; then
-                epoch=$(basename "$latest" .pt | grep -o '[0-9]*$')
-                echo "[$exp] Latest checkpoint: epoch $epoch → $latest"
-                $account upload "$latest" "/content/checkpoint_epoch${epoch}.pt"
-                echo "/content/checkpoint_epoch${epoch}.pt" > /tmp/resume_$$.txt
-                $account upload /tmp/resume_$$.txt /content/resume_path.txt
-                rm -f /tmp/resume_$$.txt
-
-                # Also upload existing metrics.jsonl to append
-                if [ -f "$SCRIPT_DIR/output-${exp}/metrics.jsonl" ]; then
-                    $account upload "$SCRIPT_DIR/output-${exp}/metrics.jsonl" /content/metrics.jsonl
+        # Resume checkpoint if present
+        if [ "$MODE" = "--resume" ]; then
+            local ckpt_dir="$SCRIPT_DIR/output-${exp_id}/checkpoints"
+            if [ -d "$ckpt_dir" ]; then
+                local latest=$(ls -1t "$ckpt_dir"/checkpoint_epoch*.pt 2>/dev/null | head -1)
+                if [ -n "$latest" ]; then
+                    local epoch=$(echo "$latest" | grep -o '[0-9]*\.pt$' | sed 's/\.pt//')
+                    echo "[$exp_id] Resume from epoch $epoch"
+                    "$COLAB" upload "$latest" "/content/checkpoint_epoch${epoch}.pt"
+                    echo "/content/checkpoint_epoch${epoch}.pt" > "/tmp/resume_${exp_id}.txt"
+                    "$COLAB" upload "/tmp/resume_${exp_id}.txt" /content/resume_path.txt
+                    rm -f "/tmp/resume_${exp_id}.txt"
+                    # Upload existing metrics to append
+                    local metrics_file="$SCRIPT_DIR/output-${exp_id}/metrics.jsonl"
+                    [ -f "$metrics_file" ] && "$COLAB" upload "$metrics_file" /content/metrics.jsonl
                 fi
-            else
-                echo "[$exp] No checkpoints found in $output_dir — starting fresh"
             fi
-        else
-            echo "[$exp] No output dir — starting fresh"
         fi
-    done
-    echo ""
-fi
+
+        "$COLAB" exec -s "$session" -f "$SCRIPT_DIR/launch.py" --timeout 120
+        echo "[$exp_id] Launched"
+    )
+}
 
 # ============================================================
-# Step 5: Launch all 3 experiments (in parallel)
+# Main
 # ============================================================
-echo "=== Step 5: Launching experiments ==="
-for exp in baseline fixed_pe heads_1; do
-    account="${ACCOUNTS[$exp]}"
-    session="${SESSIONS[$exp]}"
-    (
-        echo "[$exp] Launching on $account:$session..."
-        $account exec -s "$session" -f "$SCRIPT_DIR/launch.py" --timeout 120
-        echo "[$exp] Launched OK"
-    ) &
-done
+
+echo "=== Provisioning 3 GPU sessions ==="
+provision "" transformer-baseline &
+provision "$HOME/colab-accounts/account-b" transformer-fixedpe &
+provision "$HOME/colab-accounts/account-clb" transformer-heads1 &
 wait
 echo ""
 
-# ============================================================
-# Step 6: Quick verify — check train.py is running on each
-# ============================================================
-echo "=== Step 6: Verifying training started ==="
-sleep 15
-for exp in baseline fixed_pe heads_1; do
-    account="${ACCOUNTS[$exp]}"
-    session="${SESSIONS[$exp]}"
-    echo "[$exp] Checking..."
-    $account exec -s "$session" -f "$SCRIPT_DIR/check_progress.py" --timeout 15 2>/dev/null || \
-        echo "[$exp] WARNING: check_progress failed — may still be installing deps"
-done
+echo "=== Deploying code + launching ==="
+deploy "" transformer-baseline baseline &
+deploy "$HOME/colab-accounts/account-b" transformer-fixedpe fixed_pe &
+deploy "$HOME/colab-accounts/account-clb" transformer-heads1 heads_1 &
+wait
 echo ""
 
-# ============================================================
-# Step 7: Cron monitoring instructions
-# ============================================================
-echo "=== Step 7: Cron monitoring ==="
-echo ""
-echo "Run these in Claude Code to set up monitoring:"
-echo ""
-echo "CronCreate cron=\"*/5 * * * *\" prompt=\"Check baseline: colab exec -s transformer-baseline -f $SCRIPT_DIR/check_progress.py --timeout 15\" durable=true recurring=true"
-echo "CronCreate cron=\"*/5 * * * *\" prompt=\"Check fixed_pe: cb exec -s transformer-fixedpe -f $SCRIPT_DIR/check_progress.py --timeout 15\" durable=true recurring=true"
-echo "CronCreate cron=\"*/5 * * * *\" prompt=\"Check heads_1: clb exec -s transformer-heads1 -f $SCRIPT_DIR/check_progress.py --timeout 15\" durable=true recurring=true"
-echo ""
-echo "=== Deployment complete ==="
-echo ""
-echo "Session summary:"
+echo "=== All 3 launched ==="
 echo "  colab → transformer-baseline (baseline)"
 echo "  cb    → transformer-fixedpe  (fixed_pe)"
 echo "  clb   → transformer-heads1   (heads_1)"
 echo ""
-echo "To check progress manually:"
-echo "  colab exec -s transformer-baseline -f $SCRIPT_DIR/check_progress.py --timeout 15"
+echo "Check progress:"
+echo "  $SCRIPT_DIR/check_progress.sh"
 echo ""
-echo "When session dies (detected by cron):"
-echo "  1. Download checkpoint: colab download /content/checkpoints/checkpoint_epoch{N}.pt $SCRIPT_DIR/output-baseline/checkpoints/"
-echo "  2. Download metrics:    colab download /content/metrics.jsonl $SCRIPT_DIR/output-baseline/"
-echo "  3. Re-run: ./deploy.sh --resume"
+echo "Download results:"
+echo "  $SCRIPT_DIR/download_results.sh"
