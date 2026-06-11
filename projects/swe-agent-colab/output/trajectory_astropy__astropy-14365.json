@@ -1,0 +1,50 @@
+{
+  "task_id": "astropy__astropy-14365",
+  "resolved": false,
+  "patch": "",
+  "trajectory": [
+    {
+      "thought": "Let me first explore the repository to understand the code.",
+      "action": "str_replace_editor {\"command\": \"view\", \"path\": \"/testbed\"}",
+      "observation": "OBSERVATION:\n{observation}",
+      "execution_time": 4.241700662532821e-05,
+      "done": false,
+      "submission": null,
+      "exit_status": null
+    },
+    {
+      "thought": "Let me look at a specific file that seems relevant.",
+      "action": "str_replace_editor {\"command\": \"view\", \"path\": \"/testbed/app.py\", \"view_range\": [1, 30]}",
+      "observation": "OBSERVATION:\n{observation}",
+      "execution_time": 2.5415996788069606e-05,
+      "done": false,
+      "submission": null,
+      "exit_status": null
+    },
+    {
+      "thought": "Error: [Errno 30] Read-only file system: '/testbed'",
+      "action": "",
+      "observation": "[Errno 30] Read-only file system: '/testbed'",
+      "execution_time": 0.0,
+      "done": true,
+      "submission": null,
+      "exit_status": "error"
+    }
+  ],
+  "metrics": {
+    "task_id": "astropy__astropy-14365",
+    "resolved": false,
+    "steps_taken": 3,
+    "total_tokens": 1386,
+    "prompt_tokens": 786,
+    "completion_tokens": 600,
+    "model_queries": 3,
+    "total_time_seconds": 0.03619595799682429,
+    "model_time_seconds": 1.5,
+    "errors": {
+      "blocked": 0,
+      "syntax": 0,
+      "malformed": 0
+    }
+  }
+}
