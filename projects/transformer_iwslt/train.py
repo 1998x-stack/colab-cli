@@ -1,10 +1,10 @@
-"""Training loop for Transformer on IWSLT'14 De->En.
+"""Training loop for Transformer on IWSLT'17 De->En.
 
 Usage:
     python train.py --exp_id baseline
     python train.py --exp_id baseline --resume /content/checkpoints/ckpt_epoch5.pt
 """
-import argparse, json, math, os, sys, time, urllib.request, gzip
+import argparse, json, math, os, sys, time, urllib.request, zipfile
 from pathlib import Path
 
 import torch
@@ -19,15 +19,26 @@ from checkpoint import save_checkpoint, load_checkpoint, ensure_checkpoint_dir
 
 
 # --- Constants ---
-# IWSLT 2017 De→En ZIP from HuggingFace CDN (no auth needed)
+# HF canonical repo is IWSLT/iwslt2017 (uppercase org). Lowercase redirects via 307
+# which urllib doesn't follow, so use the canonical casing directly.
 IWSLT_ZIP_URL = "https://huggingface.co/datasets/IWSLT/iwslt2017/resolve/main/data/2017-01-trnted/texts/de/en/de-en.zip"
 PAD, SOS, EOS, UNK = 0, 1, 2, 3
 SPECIAL_TOKENS = ["[PAD]", "[SOS]", "[EOS]", "[UNK]"]
 
 
+def _parse_iwslt_line(line: str) -> str | None:
+    """Extract text from an IWSLT XML-tagged line. Returns None for non-seg lines."""
+    line = line.strip()
+    if not line.startswith("<seg"):
+        return None
+    # <seg id="N"> text </seg> → extract "text"
+    part = line.split(">", 1)[1]  # after <seg id="N">
+    text = part.rsplit("<", 1)[0]  # before </seg>
+    return text.strip()
+
+
 def load_iwslt_pairs(data_dir: str) -> list[tuple[str, str]]:
     """Download and load IWSLT'17 De-En from HF CDN ZIP file."""
-    import zipfile
     os.makedirs(data_dir, exist_ok=True)
     zip_path = os.path.join(data_dir, "de-en.zip")
     de_path = os.path.join(data_dir, "train.de")
@@ -48,34 +59,32 @@ def load_iwslt_pairs(data_dir: str) -> list[tuple[str, str]]:
 
         print("[data] Extracting ZIP...")
         with zipfile.ZipFile(zip_path) as zf:
-            # Find train files (IWSLT17.*.de-en.de / .de-en.en)
-            de_member = en_member = None
-            for name in zf.namelist():
-                if name.endswith(".de-en.de") and "IWSLT17" in name and "train" in name.lower():
-                    de_member = name
-                elif name.endswith(".de-en.en") and "IWSLT17" in name and "train" in name.lower():
-                    en_member = name
-            if de_member is None or en_member is None:
-                # Try broader match
-                for name in zf.namelist():
-                    if name.endswith(".de") and "train" in name.lower():
-                        de_member = name
-                    elif name.endswith(".en") and "train" in name.lower():
-                        en_member = name
-            if de_member is None or en_member is None:
-                raise RuntimeError(f"Could not find train files in ZIP. Contents: {zf.namelist()[:20]}")
+            # ZIP extracts to de-en/ directory with train.tags.de-en.{de,en}
+            de_zip = "de-en/train.tags.de-en.de"
+            en_zip = "de-en/train.tags.de-en.en"
+            if de_zip not in zf.namelist():
+                # Debug: list contents
+                names = [n for n in zf.namelist() if "train" in n.lower()]
+                raise RuntimeError(f"train.tags.de-en not found. Contents with 'train': {names}")
 
-            # Extract
-            with zf.open(de_member) as src, open(de_path, "wb") as dst:
+            with zf.open(de_zip) as src, open(de_path, "wb") as dst:
                 dst.write(src.read())
-            with zf.open(en_member) as src, open(en_path, "wb") as dst:
+            with zf.open(en_zip) as src, open(en_path, "wb") as dst:
                 dst.write(src.read())
 
+    # Parse XML-tagged files, extracting only <seg> lines (aligned)
     with open(de_path) as df, open(en_path) as ef:
-        de_orig = [l.strip() for l in df]
-        en_orig = [l.strip() for l in ef]
-    assert len(de_orig) == len(en_orig), f"Mismatch: {len(de_orig)} de vs {len(en_orig)} en"
-    pairs = [(d, e) for d, e in zip(de_orig, en_orig) if d and e]
+        de_lines = df.readlines()
+        en_lines = ef.readlines()
+
+    pairs = []
+    for de_line, en_line in zip(de_lines, en_lines):
+        de_text = _parse_iwslt_line(de_line)
+        en_text = _parse_iwslt_line(en_line)
+        if de_text is not None and en_text is not None:
+            if de_text and en_text:  # skip empty
+                pairs.append((de_text, en_text))
+
     print(f"[data] Loaded {len(pairs)} sentence pairs")
     return pairs
 
