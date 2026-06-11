@@ -40,12 +40,12 @@ class AlexNet(nn.Module):
         self._init_weights()
 
     def _init_weights(self):
-        # Paper: conv layers N(0, 0.01), FC layers N(0, 0.005)
+        # He (Kaiming) init for ReLU — paper N(0,0.01) doesn't converge on 128×128 input
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, mean=0, std=0.01)
+                nn.init.kaiming_normal_(m.weight, mode="fan_in", nonlinearity="relu")
             elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, mean=0, std=0.005)
+                nn.init.kaiming_normal_(m.weight, mode="fan_in", nonlinearity="relu")
 
         # Paper: bias = 1 for Conv2, Conv4, Conv5 and all FC layers.
         # Bias = 0 (default) for Conv1, Conv3.

@@ -4,19 +4,21 @@
 Usage (on Colab VM): python -u train.py --exp_ids 1,2
 """
 
-import json, os, sys, time, argparse
+import json, os, sys, time, argparse, tarfile, urllib.request
 from datetime import datetime
 
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader, Dataset, Subset, random_split
 import torchvision.transforms.functional as TF
 from torchvision.transforms import RandomCrop
-from datasets import load_dataset
+from torchvision.datasets import ImageFolder
 
 OUTPUT_DIR = "/content/alexnet-output"
 LOG_PATH = "/content/train.log"
+DATA_DIR = "/content/imagenette2-160"
+IMAGENETTE_URL = "https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-160.tgz"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -29,12 +31,12 @@ CLASS_NAMES = [
 NUM_CLASSES = 10
 
 BATCH_SIZE = 128
-LR_INIT = 0.01
+LR_INIT = 0.001
 MOMENTUM = 0.9
 WEIGHT_DECAY = 0.0005
 LR_PATIENCE = 3
 LR_FACTOR = 0.1
-EPOCHS = 90
+EPOCHS = 20
 CROP_SIZE = 128
 
 LOG_FILE = open(LOG_PATH, "w", buffering=1)
@@ -46,7 +48,39 @@ def log(msg):
     LOG_FILE.write(line + "\n")
 
 
-# ── PCA Color Augmentation (Fancy PCA, paper section 4.1) ────────────────
+# ── Data pipeline ────────────────────────────────────────────────────────
+
+def download_imagenette():
+    """Download and extract Imagenette-160 to DATA_DIR if not present."""
+    if os.path.exists(DATA_DIR):
+        log(f"Imagenette already at {DATA_DIR}")
+        return
+
+    tgz_path = "/content/imagenette2.tgz"
+    log(f"Downloading Imagenette from {IMAGENETTE_URL}...")
+    urllib.request.urlretrieve(IMAGENETTE_URL, tgz_path)
+    log(f"Downloaded {os.path.getsize(tgz_path)/1024/1024:.0f}MB. Extracting...")
+    with tarfile.open(tgz_path, "r:gz") as tar:
+        tar.extractall(path="/content", filter="data")
+    os.remove(tgz_path)
+    log(f"Extracted to {DATA_DIR}")
+
+
+def load_imagenette_data():
+    """Load Imagenette via ImageFolder. Returns train_dataset, val_dataset."""
+    download_imagenette()
+
+    train_dir = os.path.join(DATA_DIR, "train")
+    full_train = ImageFolder(train_dir)
+    n_train = int(0.8 * len(full_train))
+    n_val = len(full_train) - n_train
+    train_ds, val_ds = random_split(full_train, [n_train, n_val],
+                                     generator=torch.Generator().manual_seed(42))
+    log(f"Train: {n_train}, Val: {n_val}")
+    return full_train, train_ds, val_ds
+
+
+# ── PCA Color Augmentation (Fancy PCA) ────────────────────────────────────
 
 class PCA:
     def __init__(self, n_components=3):
@@ -71,41 +105,6 @@ class PCA:
         return img + delta.view(3, 1, 1)
 
 
-# ── Data Pipeline ────────────────────────────────────────────────────────
-
-class ImagenetteDataset(Dataset):
-    def __init__(self, dataset, transform=None):
-        self.dataset = dataset
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.dataset)
-
-    def __getitem__(self, i):
-        item = self.dataset[i]
-        img = item["image"]
-        label = item["label"]
-        if self.transform:
-            img = self.transform(img)
-        return img, label
-
-
-def load_imagenette_data():
-    log("Loading Imagenette (frgfm/imagenette, 160px)...")
-    token = os.environ.get("HF_TOKEN")
-    ds = load_dataset("frgfm/imagenette", "160px", token=token)
-
-    train_raw = ds["train"]
-    n_train = int(0.8 * len(train_raw))
-    indices = torch.randperm(len(train_raw)).tolist()
-
-    idx_train = indices[:n_train]
-    idx_val = indices[n_train:]
-
-    log(f"Train: {n_train}, Val: {len(idx_val)}")
-    return train_raw, idx_train, idx_val
-
-
 def build_transforms(augment=True, pca=None):
     def _augment(img):
         if augment:
@@ -128,21 +127,22 @@ def build_transforms(augment=True, pca=None):
     return _augment
 
 
-# ── Training Loop ────────────────────────────────────────────────────────
+# ── Training helpers ─────────────────────────────────────────────────────
 
-def train_epoch(model, loader, optimizer, criterion, epoch, total_epochs):
+def train_epoch(model, loader, optimizer, criterion):
     model.train()
     running_loss = 0.0
     correct_top1 = 0
     correct_top3 = 0
     n = 0
 
-    for batch_idx, (x, y) in enumerate(loader):
+    for x, y in loader:
         x, y = x.to(DEVICE), y.to(DEVICE)
         optimizer.zero_grad()
         out = model(x)
         loss = criterion(out, y)
         loss.backward()
+        nn.utils.clip_grad_norm_(model.parameters(), 5.0)
         optimizer.step()
 
         running_loss += loss.item() * x.size(0)
@@ -177,29 +177,26 @@ def evaluate(model, loader, criterion):
     return total_loss / n, correct_top1 / n, correct_top3 / n, y_true, y_pred
 
 
+# ── 10-View Evaluation ───────────────────────────────────────────────────
+
 def make_10_views(img):
-    """Paper 10-view: 4 corners + center, each flipped → 10 crops."""
     h, w = img.shape[-2], img.shape[-1]
     crop_h, crop_w = CROP_SIZE, CROP_SIZE
 
     views = []
-    # 4 corners
     for i in (0, h - crop_h):
         for j in (0, w - crop_w):
             views.append(img[:, i:i+crop_h, j:j+crop_w])
-    # Center
     ci = (h - crop_h) // 2
     cj = (w - crop_w) // 2
     views.append(img[:, ci:ci+crop_h, cj:cj+crop_w])
-    # Flip all
     flipped = [v.flip(-1) for v in views.copy()]
     views.extend(flipped)
-    return torch.stack(views)  # (10, C, H, W)
+    return torch.stack(views)
 
 
 @torch.no_grad()
 def evaluate_10view(model, loader):
-    """Evaluate with 10-view test (matching paper protocol)."""
     model.eval()
     correct_top1 = 0
     correct_top3 = 0
@@ -211,7 +208,7 @@ def evaluate_10view(model, loader):
         for img in x:
             views = make_10_views(img)
             batch_views.append(views)
-        batch_views = torch.stack(batch_views)  # (B, 10, C, H, W)
+        batch_views = torch.stack(batch_views)
         B = batch_views.size(0)
 
         batch_views = batch_views.to(DEVICE)
@@ -257,43 +254,53 @@ def get_experiment_configs():
 
 # ── Experiment Runner ────────────────────────────────────────────────────
 
-FLOP_PER_IMAGE = 3.0  # GFLOPs per training image (fwd+bwd+update, 128×128 input)
+FLOP_PER_IMAGE = 3.0
 
-def run_experiment(config, train_raw, idx_train, idx_val, exp_id):
+class TransformedDataset(Dataset):
+    """Apply a callable transform to an ImageFolder subset."""
+    def __init__(self, subset, transform):
+        self.subset = subset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.subset)
+
+    def __getitem__(self, i):
+        img, label = self.subset[i]
+        if self.transform:
+            img = self.transform(img)
+        return img, label
+
+
+def run_experiment(config, full_train, train_subset, val_subset, exp_id):
     """Run one full experiment: train + 10-view eval. Returns metrics dict."""
     exp_name = config["name"]
     log(f"\n{'='*60}")
     log(f"EXPERIMENT {exp_id}: {exp_name}")
     log(f"{'='*60}")
 
-    # Build transforms
     augment = config.get("augment", True)
     pca = None
     if augment and config.get("pca", True):
         pca = PCA(n_components=3)
         log("Fitting PCA color augmentation...")
         sample_imgs = []
-        sample_indices = torch.randperm(len(idx_train))[:500].tolist()
-        for i in sample_indices:
-            img = train_raw[idx_train[i]]["image"]
-            sample_imgs.append(TF.to_tensor(TF.resize(img, CROP_SIZE)))
+        n_samples = min(500, len(train_subset))
+        for j in range(n_samples):
+            img, _ = full_train[train_subset.indices[j]]
+            sample_imgs.append(TF.to_tensor(TF.resize(img, [CROP_SIZE, CROP_SIZE])))
         pca.fit(sample_imgs)
         log(f"PCA fitted — eigvals: {pca.eigvals.tolist()}")
 
     train_transform = build_transforms(augment=augment, pca=pca)
     val_transform = build_transforms(augment=False, pca=None)
 
-    # Build datasets
-    train_subset = [train_raw[int(i)] for i in idx_train]
-    val_subset = [train_raw[int(i)] for i in idx_val]
-
-    train_ds = ImagenetteDataset(train_subset, train_transform)
-    val_ds = ImagenetteDataset(val_subset, val_transform)
+    train_ds = TransformedDataset(train_subset, train_transform)
+    val_ds = TransformedDataset(val_subset, val_transform)
 
     train_loader = DataLoader(train_ds, BATCH_SIZE, shuffle=True, num_workers=2, pin_memory=True)
     val_loader = DataLoader(val_ds, BATCH_SIZE, num_workers=2, pin_memory=True)
 
-    # Build model
     from alexnet import build_alexnet
     model = build_alexnet(config).to(DEVICE)
     n_params = sum(p.numel() for p in model.parameters())
@@ -304,7 +311,6 @@ def run_experiment(config, train_raw, idx_train, idx_val, exp_id):
         model.parameters(), lr=LR_INIT, momentum=MOMENTUM, weight_decay=WEIGHT_DECAY
     )
 
-    # Training state
     best_val_acc = 0.0
     best_state = None
     patience_counter = 0
@@ -316,14 +322,14 @@ def run_experiment(config, train_raw, idx_train, idx_val, exp_id):
     for epoch in range(1, EPOCHS + 1):
         t0_epoch = time.time()
         train_loss, train_acc1, train_acc3 = train_epoch(
-            model, train_loader, optimizer, criterion, epoch, EPOCHS
+            model, train_loader, optimizer, criterion
         )
         total_images += len(train_ds)
 
         val_loss, val_acc1, val_acc3, _, _ = evaluate(model, val_loader, criterion)
 
         elapsed = time.time() - t0_exp
-        flops_consumed = total_images * FLOP_PER_IMAGE / 1000  # TFLOPs
+        flops_consumed = total_images * FLOP_PER_IMAGE / 1000
 
         metrics_history.append({
             "epoch": epoch,
@@ -340,7 +346,6 @@ def run_experiment(config, train_raw, idx_train, idx_val, exp_id):
             f"val_loss: {val_loss:.4f} acc1: {val_acc1:.3f} acc3: {val_acc3:.3f} | "
             f"lr: {current_lr:.0e} | {time.time()-t0_epoch:.1f}s | FLOPS: {flops_consumed:.1f}T")
 
-        # LR schedule
         if val_acc1 > best_val_acc:
             best_val_acc = val_acc1
             best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
@@ -363,11 +368,8 @@ def run_experiment(config, train_raw, idx_train, idx_val, exp_id):
             break
 
     train_time = time.time() - t0_exp
-
-    # Load best checkpoint for eval
     model.load_state_dict(best_state)
 
-    # Final 10-view evaluation
     log("Running 10-view evaluation...")
     test_acc1, test_acc3, y_true, y_pred = evaluate_10view(model, val_loader)
 
@@ -399,19 +401,18 @@ def generate_charts(all_results):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import seaborn as sns
+    from sklearn.metrics import confusion_matrix as cm_fn
 
     colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 
-    # ── Figure 1: Training curves (all experiments overlaid) ─────────────
+    # ── Figure 1: Training curves ─────────────
     fig, axes = plt.subplots(1, 2, figsize=(16, 5))
-
     for i, r in enumerate(all_results):
         epochs = [m["epoch"] for m in r["epochs"]]
         top1_err = [(1 - m["val_acc1"]) * 100 for m in r["epochs"]]
         top3_err = [(1 - m["val_acc3"]) * 100 for m in r["epochs"]]
         axes[0].plot(epochs, top1_err, color=colors[i], label=r["exp_name"])
         axes[1].plot(epochs, top3_err, color=colors[i], label=r["exp_name"])
-
     axes[0].set_xlabel("Epoch"); axes[0].set_ylabel("Top-1 Error (%)")
     axes[0].set_title("AlexNet on Imagenette — Top-1 Val Error"); axes[0].legend(); axes[0].grid(True)
     axes[1].set_xlabel("Epoch"); axes[1].set_ylabel("Top-3 Error (%)")
@@ -421,7 +422,7 @@ def generate_charts(all_results):
     plt.close()
     log("  -> training_curves.png")
 
-    # ── Figure 2: Ablation bar chart ─────────────────────────────────────
+    # ── Figure 2: Ablation bar chart ─────────
     fig, ax = plt.subplots(figsize=(10, 5))
     names = [r["exp_name"] for r in all_results]
     errors = [r["test_error1_pct"] for r in all_results]
@@ -437,14 +438,14 @@ def generate_charts(all_results):
     plt.close()
     log("  -> ablation_bars.png")
 
-    # ── Figure 3: Conv1 filters (baseline only) ──────────────────────────
+    # ── Figure 3: Conv1 filters ──────────────
     baseline = all_results[0]
     from alexnet import build_alexnet
     cfg = get_experiment_configs()[baseline["exp_id"]]
     model = build_alexnet(cfg)
     ckpt_path = os.path.join(OUTPUT_DIR, f"exp{baseline['exp_id']}_best.pt")
     model.load_state_dict(torch.load(ckpt_path, map_location="cpu"))
-    conv1_w = model.conv1.weight.detach().cpu()  # (96, 3, 11, 11)
+    conv1_w = model.conv1.weight.detach().cpu()
 
     fig, axes = plt.subplots(8, 12, figsize=(14, 10))
     for i, ax in enumerate(axes.flat):
@@ -459,9 +460,8 @@ def generate_charts(all_results):
     plt.close()
     log("  -> conv1_filters.png")
 
-    # ── Figure 4: Confusion matrix (baseline only) ───────────────────────
-    from sklearn.metrics import confusion_matrix
-    cm = confusion_matrix(baseline["y_true"], baseline["y_pred"])
+    # ── Figure 4: Confusion matrix ───────────
+    cm = cm_fn(baseline["y_true"], baseline["y_pred"])
     fig, ax = plt.subplots(figsize=(9, 7))
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax,
                 xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES)
@@ -507,7 +507,7 @@ def main():
     log(f"Starting AlexNet Imagenette — experiments: {exp_ids}")
     log(f"Device: {DEVICE}")
 
-    train_raw, idx_train, idx_val = load_imagenette_data()
+    full_train, train_subset, val_subset = load_imagenette_data()
 
     exp_configs = get_experiment_configs()
     all_results = []
@@ -517,17 +517,15 @@ def main():
             log(f"ERROR: unknown experiment {exp_id}, skipping")
             continue
         config = exp_configs[exp_id]
-        result = run_experiment(config, train_raw, idx_train, idx_val, exp_id)
+        result = run_experiment(config, full_train, train_subset, val_subset, exp_id)
         all_results.append(result)
 
     generate_charts(all_results)
     export_metrics(all_results)
 
-    # Signal watchdog to stop
     with open("/content/watchdog_stop", "w") as f:
         f.write("done")
 
-    # Tar checkpoints
     log("Tarring checkpoints...")
     os.system(f"tar -czf {OUTPUT_DIR}.tar.gz -C /content alexnet-output")
     log("ALL DONE.")

@@ -15,7 +15,12 @@ projects/
 ├── rl-sac/               # SAC on MountainCarContinuous
 ├── cnn-cifar10/           # CNN classifier, CIFAR-10
 ├── rl-dqn-atari/ nanogpt/ nanochat-colab/ rnn-imdb/ cuda-tutorial/
-├── vllm-compare/ vllm-rag/ ml-tutorial/ autoresearch-t4/
+├── vllm-compare/        # vLLM model benchmarks on Colab T4
+│   ├── compare.py         # 3-model latency/throughput/VRAM comparison
+│   ├── test_v0.py         # Working config: V0 engine + monkey-patch for T4
+│   ├── bootstrap.py       # Colab bootstrap (pip install + spawn)
+│   └── check_progress.py
+├── vllm-rag/ ml-tutorial/ autoresearch-t4/
 ```
 
 ## Project conventions
@@ -71,6 +76,39 @@ colab stop -s training
 - `PYTHONUNBUFFERED=1` + `python -u` + `start_new_session=True` in subprocess.Popen
 - `colab exec -f` reads LOCAL files (relative paths), sends to VM. No `-c` flag — use stdin pipe.
 - `colab download` needs tar for dirs: `tar -czf /content/out.tar.gz -C /content dir/`
+
+## vLLM on Colab
+
+**Only vLLM 0.10.2 fits** Colab T4 (CUDA 12.8, 15.6 GB VRAM). Newer versions (0.21.0+) need CUDA 13.0.
+
+Two required workarounds:
+
+1. **`VLLM_USE_V1=0`** — Colab pre-initializes CUDA, so V1's `spawn` subprocess crashes. Must set before importing vllm.
+
+2. **Transformers 5.x monkey-patch** — vLLM 0.10.2 pins `transformers>=5.0` but the code still uses `all_special_tokens_extended` (removed in 5.x).
+
+```python
+import os
+os.environ["VLLM_USE_V1"] = "0"
+
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+_orig_init = PreTrainedTokenizerBase.__init__
+def _patched_init(self, *args, **kwargs):
+    _orig_init(self, *args, **kwargs)
+    if not hasattr(self, "all_special_tokens_extended"):
+        self.all_special_tokens_extended = []
+PreTrainedTokenizerBase.__init__ = _patched_init
+
+# THEN import vllm
+from vllm import LLM, SamplingParams
+```
+
+Install: `pip install vllm==0.10.2 --extra-index-url https://download.pytorch.org/whl/cu128`
+
+After install, reinstall torchvision (vLLM downgrades torch → breaks pre-installed torchvision):
+`pip install torchvision Pillow --extra-index-url https://download.pytorch.org/whl/cu128`
+
+VRAM fit (T4 15.6 GB): SmolLM2-1.7B ~12.8 GB. Qwen2.5-3B likely fits. 7B needs AWQ quantization.
 
 ## Architecture gotchas (from AlexNet project)
 
