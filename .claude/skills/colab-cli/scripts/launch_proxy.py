@@ -1,12 +1,14 @@
-"""Template launcher: check proxy, install deps, spawn training.
+"""Template launcher: pip install deps, spawn training detached.
 
-If clash proxy is running on 127.0.0.1:7890, routes traffic through it.
-If not, uses direct connection (Colab VMs have good direct internet).
+Colab VMs have excellent direct internet from GCP (Google, PyPI, GitHub,
+HuggingFace all reachable). VM-side proxy (SS servers) is virtually never
+reachable from GCP, so this template skips proxy detection and uses direct
+connections. If you specifically need VM-side proxy, use vm-proxy-bootstrap.py
+first, then adapt this template.
 
 Usage:
     1. Customize SCRIPT and DEPS below
-    2. Optional: bootstrap proxy first:  colab exec -f vm-proxy-bootstrap.py
-    3. Launch:                           colab exec -f launch_proxy.py --timeout 120
+    2. Launch:  colab exec -f launch_proxy.py --timeout 120
 """
 
 import subprocess
@@ -20,52 +22,19 @@ DEPS = ["torch", "transformers"]        # pip packages to install
 LOG = "/content/train.log"              # Log output path
 # ---------------------------------------------------------------------------
 
-MIXED_PORT = 7890
-
-
-def proxy_running():
-    """Check if clash proxy is reachable."""
-    result = subprocess.run(
-        ["curl", "-s", "--max-time", "2",
-         "-x", f"http://127.0.0.1:{MIXED_PORT}",
-         "https://www.google.com", "-o", "/dev/null", "-w", "%{http_code}"],
-        capture_output=True, text=True,
-    )
-    return result.stdout.strip() == "200"
-
 
 def install_deps():
-    env = os.environ.copy()
-    env["PYTHONUNBUFFERED"] = "1"
-
-    if proxy_running():
-        print("[launch] Proxy detected — routing pip through 127.0.0.1:7890")
-        env.update({
-            "HTTPS_PROXY": f"http://127.0.0.1:{MIXED_PORT}",
-            "HTTP_PROXY": f"http://127.0.0.1:{MIXED_PORT}",
-            "ALL_PROXY": f"socks5://127.0.0.1:{MIXED_PORT}",
-        })
-    else:
-        print("[launch] No proxy — using direct connection")
-
     for pkg in DEPS:
         print(f"[launch] pip install {pkg} ...")
         subprocess.run(
             [sys.executable, "-m", "pip", "install", pkg, "-q"],
-            env=env, check=True,
+            check=True,
         )
 
 
 def spawn_training():
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
-
-    if proxy_running():
-        env.update({
-            "HTTPS_PROXY": f"http://127.0.0.1:{MIXED_PORT}",
-            "HTTP_PROXY": f"http://127.0.0.1:{MIXED_PORT}",
-            "ALL_PROXY": f"socks5://127.0.0.1:{MIXED_PORT}",
-        })
 
     script_path = f"/content/{SCRIPT}"
     print(f"[launch] Starting {script_path} ...")

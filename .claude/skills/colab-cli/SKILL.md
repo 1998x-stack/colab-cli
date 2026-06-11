@@ -51,12 +51,9 @@ colab stop [-s <name>]                 # stop session
 
 ## Proxy setup (REQUIRED from China)
 
-Google Colab APIs are blocked in mainland China. Colab uses two separate network paths with different proxy behavior:
+Google Colab APIs are blocked in mainland China. The two-path architecture (see Mental model above) means REST and WebSocket need different proxy treatment.
 
-- **REST API** (`colab.pa.googleapis.com`): `requests` library — auto-detects `HTTP_PROXY`/`HTTPS_PROXY`. Supports SOCKS5 via `socks5://` prefix.
-- **WebSocket** (`*.prod.colab.dev`): `websocket-client` library — reads `https_proxy` env var but **defaults `proxy_type="http"`**, cannot parse `socks5://` prefix. Does NOT pass proxy params to `run_forever()`.
-
-**Recommended config** — REST through SOCKS5, WebSocket direct:
+**Try this first** — REST through SOCKS5, WebSocket direct:
 
 ```bash
 export HTTPS_PROXY=socks5://127.0.0.1:7890
@@ -64,7 +61,7 @@ export HTTP_PROXY=socks5://127.0.0.1:7890
 export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
 ```
 
-**If WebSocket direct fails**, try without `no_proxy` (WebSocket goes through proxy — `websocket-client` treats it as HTTP CONNECT tunnel, not SOCKS5, but Clash accepts both):
+**If WebSocket direct fails**, flip — both paths through proxy (WebSocket treated as HTTP CONNECT tunnel):
 
 ```bash
 export HTTPS_PROXY=http://127.0.0.1:7890
@@ -72,7 +69,7 @@ export HTTP_PROXY=http://127.0.0.1:7890
 export ALL_PROXY=socks5://127.0.0.1:7890
 ```
 
-Which variant works changes per session — flip and retry. `colab sessions`/`colab new`/`colab stop` always use the proxy (REST). Only `colab exec`/`colab download`/`colab upload` might need `no_proxy`.
+Which variant works changes per session — flip and retry. `colab sessions`/`colab new`/`colab stop` are REST-only (always use proxy). Only `colab exec`/`colab upload`/`colab download` might need `no_proxy`.
 
 See `docs/websocket-stability-analysis.md` for the full root-cause analysis.
 
@@ -178,7 +175,7 @@ colab new --gpu T4 -s training
 # 2. Upload your training script
 colab upload train.py /content/train.py
 
-# 3. Launch (pip install + spawn, auto-detects proxy if running)
+# 3. Launch (pip install + spawn detached, uses direct connection — Colab VMs have good GCP internet)
 colab exec -f scripts/launch_proxy.py --timeout 120
 
 # 4. Check progress (proxy health, process status, log tail, checkpoints)
@@ -223,59 +220,26 @@ colab run --gpu T4 script.py
 
 No session management, no uploads, no teardown. Best for batch jobs, benchmarks, or CI-style workflows. The VM is destroyed after the script completes.
 
-## Gotchas
+## Gotchas (top criticals)
 
-These are field-tested patterns that differ from what you'd expect. Read `references/gotchas.md` for the full list with detailed explanations. The critical ones:
+Read `references/gotchas.md` for the full list (22 field-tested items). The ones that will waste the most time if missed:
 
-1. **Proxy required from China.** REST and WebSocket use different network paths with different proxy behavior. Use `HTTPS_PROXY=socks5://...` (REST) + `no_proxy="*.colab.dev"` (WebSocket direct). Flip per session if direct fails. See Proxy setup section above.
-2. **`colab exec -f` reads LOCAL files (relative to CWD), not remote VM files.** Upload is only needed for scripts spawned as subprocesses by the exec'd script. `cd` to the right directory before `colab exec -f`.
-3. **Use detached bootstrap for any workflow with pip install or sustained operations.** `colab exec` WebSocket drops during runs >30s. Spawn a bootstrap via `start_new_session=True` that handles everything — the exec returns immediately. See `references/gotchas.md` for the pattern.
-4. **CUDA version mismatch on Colab T4.** VM has CUDA 12.8 with PyTorch 2.11.0+cu128. Latest vLLM's default wheel requires CUDA 13. Install vLLM with `--extra-index-url https://download.pytorch.org/whl/cu128` (not `--index-url`). See GPU/CUDA section in `references/gotchas.md`.
-5. **stdout is buffered in subprocess.** Set `PYTHONUNBUFFERED=1` and use `python -u` when spawning background jobs, or logs stay empty.
-6. **Only 1 GPU session per account on free tier.** Provisioning a second GPU on the same account raises `TooManyAssignmentsError`. Use the multi-account aliases (`cb`, `cc`, `clb`) to run parallel GPU sessions across accounts.
-7. **Sessions get pruned.** Session can disappear after repeated connection errors even if within the 12h window. The keep-alive daemon helps prevent idle timeout but can't protect against all failure modes. Write checkpoints to Drive, not just `/content/`. Download artifacts regularly.
-8. **`colab download` doesn't do directories.** Tar on the VM first: `tar -czf /content/out.tar.gz -C /content dir/`.
-9. **SSL errors are often transient.** Re-check `colab sessions` — background processes may still be alive.
-10. **Upload: use absolute remote paths.** `colab upload local.py /content/train.py` — relative paths may silently fail.
-11. **Colab VMs have good direct internet (GCP).** Google, HuggingFace, PyPI, GitHub all reachable directly. `proxy.yaml` SS servers are unreachable from GCP.
-12. **`colab exec` has NO `-c` flag.** Use stdin pipe for inline code: `echo '...' | colab exec`. Avoid f-strings in stdin pipes — use script files instead. See `references/gotchas.md`.
-13. **numba.cuda: `cuda.grid(2)` returns (x, y) = (col, row).** Map carefully in 2D kernels. Use `cuda.to_device()` for explicit device arrays. See GPU/CUDA section in `references/gotchas.md`.
-14. **Free tier sessions can die in <30 minutes.** Fix bugs locally — provision + upload + launch immediately after. See Session lifetime in `references/gotchas.md`.
-15. **REST API survives WebSocket drops.** When `colab exec` returns 404/401, the session is usually still alive — only the WebSocket dropped. `colab download`, `colab sessions`, `colab stop` (REST API) continue to work. Use `colab download /content/metrics.jsonl` as fallback monitoring.
-16. **SOCKS5 requires PySocks for REST.** `colab download` with `HTTPS_PROXY=socks5://127.0.0.1:7890` fails with `InvalidSchema: Missing dependencies for SOCKS support`. Install `pip install requests[socks]` locally, or use `http://127.0.0.1:7890` for REST operations.
-17. **Aliases don't work in bash scripts.** `cb`, `clb`, `cc` are zsh aliases baked into `~/.zshrc` — not available in `#!/bin/bash`. Use explicit `HOME=~/colab-accounts/account-X /Users/mx/.local/bin/colab ...` in scripts.
-18. **macOS default bash 3.2 — no associative arrays.** Use indexed arrays and parallel arrays instead of `declare -A`.
-19. **Never expand proxy env vars via `$VAR`.** `env $PROXY_VARS` and `export $PX` concatenate multi-value env strings, causing URL parse errors. Always use explicit per-variable `export VAR=value` lines.
-20. **`colab exec` output is wrapped in IPython kernel noise.** The Jupyter kernel on Colab wraps exec'd code, producing `SystemExit`, `UserWarning`, and IPython traceback noise that confuses check_progress.py output. Filter or tolerate this in monitoring scripts.
-21. **First Colab session rarely produces useful training.** Data download, tokenizer training, pre-tokenization, and CUDA JIT compilation add 7-10 min of overhead. Combined with the ~12-15 min effective window, expect the first session to die before completing an epoch. Second session (data cached on VM) works normally. See `references/gotchas.md` for details.
-22. **DataLoader `num_workers>0` hangs on Colab.** Use `num_workers=0` and pre-tokenize datasets to compensate for single-process loading.
+1. **Proxy required from China.** REST and WebSocket use different network paths with different proxy behavior. Use the two-config flip pattern from Proxy setup above.
+2. **`colab exec -f` reads LOCAL files (relative to CWD), not remote VM files.** Upload is only needed for scripts spawned as subprocesses by the exec'd script.
+3. **Use detached bootstrap for any workflow with pip install or sustained operations.** `colab exec` WebSocket drops during runs >30s. Spawn via `start_new_session=True` — the exec returns immediately.
+4. **Empty logs do NOT mean the job is stuck.** stdout to file via subprocess can buffer despite `PYTHONUNBUFFERED=1`. Verify with `nvidia-smi` or check for side effects (files appearing, GPU utilization) before assuming a job is dead.
+5. **stdout is buffered in subprocess.** Set `PYTHONUNBUFFERED=1` and use `python -u` when spawning background jobs, plus `flush=True` on all print() calls.
+6. **Only 1 GPU session per account on free tier.** Use the multi-account aliases (`cb`, `cc`, `clb`) for parallel GPU sessions.
+7. **First Colab session rarely produces useful training.** Data download + CUDA JIT = 7-10 min overhead. First session dies before completing an epoch. Second session (data cached) works normally.
+8. **`colab download` doesn't do directories.** Tar on VM first: `tar -czf /content/out.tar.gz -C /content dir/`.
+9. **REST API survives WebSocket drops.** When `colab exec` returns 404/401, session is usually still alive — use `colab download` as fallback monitoring.
+10. **`colab upload` creates a FILE not a directory** when the path doesn't exist. Upload flat to `/content/` root, create dirs via exec.
 
 ## WebSocket stability
 
-The root cause of most `colab exec` failures from China. See `docs/websocket-stability-analysis.md` for the full analysis.
+The root cause of most `colab exec` failures from China: `KernelWebSocketClient._run_websocket()` calls `run_forever()` without proxy parameters, `ping_interval=60` races with NAT timeouts, and `reconnect_interval=0` means no auto-reconnect. See `docs/websocket-stability-analysis.md` for the full root-cause analysis.
 
-**Two-path architecture:**
-
-| Path | Protocol | Library | Proxy behavior |
-|------|----------|---------|---------------|
-| REST (keep-alive, new, stop) | HTTPS | `requests` | Reads `HTTP_PROXY`/`HTTPS_PROXY`, supports `socks5://` |
-| WebSocket (exec) | WSS | `websocket-client` | Defaults `proxy_type="http"`, cannot parse `socks5://` |
-
-**Why exec drops:** `KernelWebSocketClient._run_websocket()` calls `run_forever()` without passing any proxy parameters. The `websocket-client` library reads `https_proxy` but defaults `proxy_type="http"`, which is incompatible with SOCKS5 proxies. Additionally, `ping_interval=60` races with NAT timeouts (often 30-60s), and `reconnect_interval=0` means no automatic reconnection.
-
-**Recommended workaround:** `HTTPS_PROXY=socks5://...` (REST through proxy) + `no_proxy="*.colab.dev,*.prod.colab.dev"` (WebSocket direct). If direct fails, flip: remove `no_proxy`, use `HTTPS_PROXY=http://...` (WebSocket treated as HTTP CONNECT tunnel).
-
-**Detached bootstrap is the most reliable pattern** — exec returns in seconds, training survives all WebSocket drops:
-
-```python
-# launch.py (exec'd via colab exec -f launch.py)
-proc = subprocess.Popen(
-    [sys.executable, "-u", "/content/train.py"],
-    start_new_session=True,  # survives exec timeout + WebSocket drop
-    env={"PYTHONUNBUFFERED": "1"},
-)
-print(f"OK. PID={proc.pid}")  # exec returns here, training continues
-```
+**The fix:** Detached bootstrap — exec returns in seconds, training survives all WebSocket drops (see Executing code > Background / nohup execution above).
 
 ## Checkpoint persistence
 

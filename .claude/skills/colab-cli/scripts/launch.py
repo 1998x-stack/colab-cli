@@ -13,8 +13,8 @@ import sys
 import os
 
 # ── Customize these ──────────────────────────────────────────────────────
-SCRIPT = "/content/sac_mountaincar.py"   # path to your training script on the VM
-DEPS = ["gymnasium"]                      # pip packages to install
+SCRIPT = "/content/train.py"              # path to your training script on the VM
+DEPS = ["torch"]                          # pip packages to install
 LOG = "/content/train.log"               # where stdout/stderr goes
 # ─────────────────────────────────────────────────────────────────────────
 
