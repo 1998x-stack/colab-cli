@@ -1,8 +1,7 @@
 """Model client for vLLM's OpenAI-compatible API."""
 
 import time
-import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from openai import OpenAI
@@ -11,10 +10,7 @@ from openai import OpenAI
 @dataclass
 class ModelOutput:
     message: str
-    thought: str
-    action: str
     tool_calls: list[dict] | None = None
-    thinking_blocks: list[dict] | None = None
     prompt_tokens: int = 0
     completion_tokens: int = 0
 
@@ -83,8 +79,6 @@ class VLLMClient:
 
         return ModelOutput(
             message=content,
-            thought=content,  # thought and action separated during parsing
-            action="",
             tool_calls=tool_calls,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,

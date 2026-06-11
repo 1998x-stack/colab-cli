@@ -3,16 +3,16 @@
 import json
 import time
 import logging
-from dataclasses import dataclass, field
+import subprocess
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import yaml
 from jinja2 import Template
 
 from tools import (
     ALL_COMMANDS, BASH_COMMAND, STR_REPLACE_EDITOR, SUBMIT_COMMAND,
-    get_tool_schemas, get_command_docs, Command,
+    get_tool_schemas, get_command_docs,
 )
 from models import VLLMClient, ModelOutput
 from environment import Environment
@@ -27,7 +27,6 @@ class StepOutput:
     observation: str = ""
     output: str = ""
     tool_calls: list[dict] | None = None
-    tool_call_ids: list[str] | None = None
     done: bool = False
     submission: str | None = None
     exit_status: str | None = None
@@ -103,24 +102,11 @@ class Agent:
 
             if step.done:
                 patch = step.submission or self.env.get_patch()
-                resolved = self._evaluate_patch(patch, test_cmd)
-                return AgentRunResult(
-                    resolved=resolved,
-                    patch=patch,
-                    trajectory=self.trajectory,
-                    model_stats={
-                        "prompt_tokens": self.model.stats.total_prompt_tokens,
-                        "completion_tokens": self.model.stats.total_completion_tokens,
-                        "total_queries": self.model.stats.total_queries,
-                        "total_time": self.model.stats.total_time,
-                    },
-                    total_time=time.perf_counter() - t0,
-                    steps_taken=step_idx + 1,
-                    errors=errors,
-                )
+                return self._make_result(patch, test_cmd, t0, step_idx + 1, errors)
 
-        # Max steps reached
-        patch = self.env.get_patch()
+        return self._make_result(self.env.get_patch(), test_cmd, t0, self.max_steps, errors)
+
+    def _make_result(self, patch, test_cmd, t0, steps, errors):
         resolved = self._evaluate_patch(patch, test_cmd)
         return AgentRunResult(
             resolved=resolved,
@@ -133,7 +119,7 @@ class Agent:
                 "total_time": self.model.stats.total_time,
             },
             total_time=time.perf_counter() - t0,
-            steps_taken=self.max_steps,
+            steps_taken=steps,
             errors=errors,
         )
 
@@ -157,7 +143,6 @@ class Agent:
     def _forward(self) -> StepOutput:
         step = StepOutput()
 
-        # Query model with error retry loop
         for requery in range(self.max_requeries + 1):
             try:
                 output = self.model.chat(
@@ -171,17 +156,15 @@ class Agent:
                 step.thought = thought
                 step.action = action
 
-                # Check for blocked actions
                 if self._is_blocked(action):
                     self._requery("blocked", step, action)
                     continue
 
-                # Check for bash syntax errors
                 if self._has_syntax_error(action):
                     self._requery("syntax", step, action)
                     continue
 
-                break  # valid action, proceed
+                break
 
             except Exception as e:
                 logger.warning(f"Model query failed (requery {requery}): {e}")
@@ -221,14 +204,12 @@ class Agent:
 
         step.observation = observation
 
-        # Add to history
         self.history.append({
             "role": "assistant",
             "content": step.output,
             "tool_calls": step.tool_calls,
         })
 
-        # Add tool response
         if step.tool_calls:
             for tc in step.tool_calls:
                 self.history.append({
@@ -242,7 +223,6 @@ class Agent:
                 "content": observation,
             })
 
-        # Check for submission
         if self._is_submission(observation):
             step = self._handle_submission(step)
 
@@ -281,12 +261,9 @@ class Agent:
         return first_word in self.blocklist_standalone
 
     def _has_syntax_error(self, action: str) -> bool:
-        """Check bash syntax with bash -n."""
-        if not action.strip().startswith("bash"):
+        if not action.strip().startswith(BASH_COMMAND.name):
             return False
-        # Extract the command part after "bash "
-        cmd = action.strip()[5:].strip().strip("'\"")
-        import subprocess
+        cmd = action.strip()[len(BASH_COMMAND.name):].strip().strip("'\"")
         result = subprocess.run(
             ["bash", "-n"], input=cmd, capture_output=True, text=True
         )
@@ -298,28 +275,30 @@ class Agent:
         action = action.strip()
         assert self.env is not None
 
-        if action.startswith("bash"):
-            cmd = action[5:].strip().strip("'\"")
+        bash_name = BASH_COMMAND.name
+        editor_name = STR_REPLACE_EDITOR.name
+        submit_name = SUBMIT_COMMAND.name
+
+        if action.startswith(bash_name):
+            cmd = action[len(bash_name):].strip().strip("'\"")
             return self.env.execute(cmd, timeout=self.execution_timeout)
 
-        elif action.startswith("str_replace_editor"):
+        elif action.startswith(editor_name):
             return self._handle_str_replace_editor(action)
 
-        elif action.startswith("submit"):
+        elif action.startswith(submit_name):
             self.env.execute("git add -A", timeout=10)
             patch = self.env.get_patch()
-            self.env.write_file("/root/model.patch", patch)
             return f"<<SWE_AGENT_SUBMISSION>>\n{patch}"
 
         else:
             return self.env.execute(action, timeout=self.execution_timeout)
 
     def _handle_str_replace_editor(self, action: str) -> str:
-        """Parse and execute str_replace_editor commands."""
         assert self.env is not None
 
-        # Parse arguments from function call JSON or inline args
-        args_str = action[len("str_replace_editor "):].strip()
+        prefix = STR_REPLACE_EDITOR.name + " "
+        args_str = action[len(prefix):].strip()
 
         # Try JSON parse first (from function calling)
         try:
@@ -396,9 +375,10 @@ class Agent:
 
     def _handle_submission(self, step: StepOutput) -> StepOutput:
         assert self.env is not None
-        try:
-            patch = self.env.read_file("/root/model.patch")
-        except FileNotFoundError:
+        marker = "<<SWE_AGENT_SUBMISSION>>"
+        if marker in step.observation:
+            patch = step.observation.split(marker, 1)[1].strip()
+        else:
             patch = self.env.get_patch()
         step.submission = patch if patch.strip() else None
         step.done = True

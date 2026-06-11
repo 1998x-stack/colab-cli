@@ -8,7 +8,6 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 
 
 def load_metrics(path: str = "output/metrics.json") -> dict:
@@ -95,11 +94,10 @@ def plot_token_allocation(metrics: dict, output_dir: str = "output"):
     out = Path(output_dir)
 
     for task in metrics["per_task"]:
-        traj_path = out / f"trajectory_{task['task_id']}.json"
+        task_slug = task["task_id"].replace("/", "_")
+        traj_path = out / f"trajectory_{task_slug}.json"
         if not traj_path.exists():
             continue
-        with open(traj_path) as f:
-            traj = json.load(f)
 
         fig, ax = plt.subplots(figsize=(10, 4))
         total_prompt = task["prompt_tokens"]
@@ -117,7 +115,6 @@ def plot_token_allocation(metrics: dict, output_dir: str = "output"):
                      f"({total:,} total tokens)")
 
         plt.tight_layout()
-        task_slug = task["task_id"].replace("/", "_")
         fig.savefig(out / f"token_allocation_{task_slug}.png", dpi=150, bbox_inches="tight")
         plt.close(fig)
         print(f"Saved token_allocation_{task_slug}.png")

@@ -44,16 +44,13 @@ def main():
 
     # Step 3: Wait for vLLM to be ready
     print("[launch] Waiting for vLLM server...")
+    from models import check_vllm_health
     for i in range(120):
         time.sleep(10)
-        try:
-            from openai import OpenAI
-            client = OpenAI(base_url="http://localhost:8000/v1", api_key="x")
-            models = client.models.list()
-            print(f"[launch] vLLM ready! Models: {[m.id for m in models]}")
+        if check_vllm_health():
+            print("[launch] vLLM ready!")
             break
-        except Exception:
-            print(f"[launch] Waiting... ({i*10}s)")
+        print(f"[launch] Waiting... ({i*10}s)")
     else:
         print("[launch] ERROR: vLLM server did not start within 20 min")
         sys.exit(1)
