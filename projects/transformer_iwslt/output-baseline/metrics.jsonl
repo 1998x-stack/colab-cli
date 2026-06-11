@@ -1,0 +1,1 @@
+{"epoch": 1, "train_loss": 25.6, "val_loss": 9.2282, "bleu": 0.9, "lr": 0.00027304, "tokens_processed": 6916256, "wall_time_s": 332.3}
