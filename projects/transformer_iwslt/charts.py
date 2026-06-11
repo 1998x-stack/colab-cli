@@ -11,7 +11,6 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
 
 
 PROJECT_DIR = Path(__file__).parent
@@ -135,7 +134,7 @@ def main():
     ax1.set_title("Sinusoidal PE — Cosine Similarity")
     ax1.set_xlabel("Position")
     ax1.set_ylabel("Position")
-    plt.colorbar(im1, ax=ax1)
+    fig.colorbar(im1, ax=ax1)
 
     # Learned PE placeholder
     ax2.text(0.5, 0.5,
@@ -153,14 +152,14 @@ def main():
     # --- 6. Results summary ---
     lines = ["# Transformer IWSLT'14 De->En — Results Summary\n"]
     lines.append("| Experiment | Best BLEU | Final Train Loss | "
-                 "Final Val Loss | Params |")
-    lines.append("|---|---|---|---|---|")
+                 "Final Val Loss |")
+    lines.append("|---|---|---|---|")
     for exp_id, metrics in all_metrics.items():
         best_bleu = max(m["bleu"] for m in metrics)
         final = metrics[-1]
         lines.append(
             f"| {LABELS[exp_id]} | {best_bleu:.1f} | "
-            f"{final['train_loss']:.3f} | {final['val_loss']:.3f} | ~65M |"
+            f"{final['train_loss']:.3f} | {final['val_loss']:.3f} |"
         )
 
     with open(CHARTS_DIR / "results_summary.md", "w") as f:
