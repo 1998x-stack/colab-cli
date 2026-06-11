@@ -79,12 +79,14 @@ Provisioning a second GPU session raises `TooManyAssignmentsError (412 Precondit
 
 ### Sessions auto-terminate
 
-Free Colab sessions last ~2-4 hours of total runtime. After that, the VM is destroyed and all files are lost. There is no warning before termination.
+Free-tier GPU (T4) sessions last **12-15 minutes** of wall-clock time. Not 2-4 hours — that's the best case for CPU or Pro. GPU sessions are aggressively terminated. There is no warning. All files are lost.
 
 **Mitigation:**
-- Save checkpoints frequently
-- Download important artifacts with `colab download`
-- For critical runs, use `colab run` (ephemeral, auto-teardown) or upgrade to Colab Pro
+- Keep the full pipeline under 10 minutes: pip install (60-90s) + downloads + experiment
+- Pre-download data and models locally when possible, upload to VM
+- Download artifacts immediately after generation
+- For anything longer, split across multiple sessions or upgrade to Colab Pro
+- `colab run` is one-shot (provision → run → teardown) — fine for batch jobs, but results must be uploaded to Drive or external storage from within the script since the session is destroyed after completion
 
 ### Free tier sessions can die in under 5 minutes after connection errors
 
@@ -95,9 +97,11 @@ After `RuntimeError: Connection was lost` or `TimeoutError` during exec, the ses
 - If exec fails, immediately check with `colab sessions` and re-provision if needed
 - Don't assume the session survived just because it was created 2 minutes ago
 
-### Free tier sessions can die in under 30 minutes
+### Free tier GPU sessions die in 12-15 minutes
 
-The 2-4 hour window is a best case. Sessions have been observed dying in under 30 minutes of wall-clock time, even while mid-execution with no errors. Idle time during debugging/iteration burns the clock just as fast as active compute.
+The 2-4 hour window is for CPU/Pro, not free GPU. Free-tier T4 GPU sessions **consistently die in 12-15 minutes** of wall-clock time, even mid-execution with no errors. This is the norm, not an edge case. From 7 provisioning attempts in one session, 4 sessions died before completing a ~10 min pipeline.
+
+Idle time during debugging burns the clock just as fast as active compute.
 
 **Mitigation:** Fix bugs locally, then provision a fresh session and upload+launch immediately. Don't spend time iterating on bug fixes after provisioning — the clock is ticking.
 
@@ -310,7 +314,73 @@ The signature format for `cuda.declare_device()` varies across numba versions (`
 
 Colab T4 is a Turing GPU (compute capability 7.5). Detected as `Tesla T4` by numba.cuda. Good for learning CUDA programming concepts; lacks tensor cores accessible via numba (numba doesn't expose warp-level MMA). For production deep learning, Colab Pro/Pro+ with A100/H100 is better.
 
+## HuggingFace library compatibility
+
+### datasets >= 4.0 breaks older HF datasets
+
+Colab VMs ship `datasets==4.0.0` which changed dataset path resolution. Many older datasets (hotpot_qa, squad, etc.) fail:
+
+```
+HfUriError: Repository id must be 'namespace/name', got 'hotpot_qa'
+```
+
+**Fix:** Pre-download data locally and upload the JSON file. Don't use `datasets` on the VM.
+
+```bash
+# On local machine:
+python -c "
+from datasets import load_dataset
+import json
+ds = load_dataset('hotpot_qa', 'distractor', split='validation')
+# sample and save to JSON
+"
+
+# Upload to VM:
+colab upload data.json /content/data.json
+```
+
+If you must use datasets on Colab, install `datasets==2.21.0` + `huggingface-hub==0.23.0`. But this creates version conflicts with anything needing a newer `huggingface-hub` (transformers, vLLM).
+
+### AWQ model loading needs gptqmodel on Colab
+
+Colab's `transformers` version requires `gptqmodel` for AWQ-quantized models, not `autoawq` alone:
+
+```
+ImportError: Loading an AWQ quantized model requires gptqmodel.
+Please install it with 'pip install gptqmodel'
+```
+
+**Fix:** `pip install autoawq gptqmodel` — install both. `gptqmodel` handles AWQ model loading in newer transformers; `autoawq` provides the kernels.
+
+### vLLM version vs. transformers compatibility on Colab
+
+Colab T4 VMs ship specific `transformers` versions that create narrow vLLM compatibility windows:
+
+| vLLM | Issue |
+|------|-------|
+| ≥0.8.0 | CUDA 13 only — `libcudart.so.13: cannot open shared object file` |
+| 0.7.x | `ModuleNotFoundError: Could not import module 'ProcessorMixin'` — transformers too new |
+| 0.9.x | `AttributeError: Qwen2Tokenizer has no attribute all_special_tokens_extended` |
+
+For Colab T4, the pragmatic options are: (a) use `vllm >=0.10, <0.11` with `--extra-index-url https://download.pytorch.org/whl/cu128`, or (b) use `transformers` + `AutoModelForCausalLM` directly (no vLLM). Option (b) avoids all CUDA/version conflicts at ~3-5s per inference (sequential, no batching).
+
 ## File management
+
+### `colab upload` can't create subdirectories
+
+Uploading to `/content/strategies/cot.py` when `strategies/` doesn't exist on the VM returns HTTP 500. `colab upload` does not auto-create parent directories on the VM.
+
+**Fix:** Upload flat to `/content/` root, then create directories and move files via exec:
+
+```bash
+# Upload to root:
+colab upload local.py /content/cot.py
+
+# Create dir and move:
+echo 'import os, shutil; os.makedirs("/content/strategies", exist_ok=True); shutil.move("/content/cot.py", "/content/strategies/cot.py")' | colab exec -s <name>
+```
+
+Or use a monolithic script that writes all files inline — no uploads needed for multi-file projects.
 
 ### colab ls is your debug tool
 
