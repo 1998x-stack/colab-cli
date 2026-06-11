@@ -34,7 +34,8 @@ colab stop -s training                            # release VM
 | `projects/rl-dqn-atari/` | DQN on Atari environments |
 | `projects/vllm-compare/` | vLLM inference benchmarks |
 | `projects/vllm-rag/` | RAG pipeline with vLLM |
-| `projects/alexnet-imagenette/` | AlexNet on Imagenette |
+| `projects/alexnet_imagenette/` | AlexNet on Imagenette |
+| `projects/hotpotqa-reasoning/` | CoT vs ReAct prompting comparison on HotpotQA |
 | `projects/autoresearch-t4/` | Automated ML research on T4 |
 | `projects/cuda-tutorial/` | CUDA kernel tutorials |
 | `projects/ml-tutorial/` | ML fundamentals |
@@ -52,9 +53,22 @@ colab stop -s training                            # release VM
 ## Session Hygiene
 
 - **Always `colab stop` when done** — idle VMs burn compute units
-- Free tier VMs auto-terminate after ~2-4 hours
+- Free tier GPU (T4) VMs auto-terminate after **~12-15 minutes** (not 2-4 hours)
 - `colab sessions` lists active sessions; `[?]` = orphaned server-side
 - `colab log -s <name> -o report.ipynb` exports session history as notebook
+
+## Accounts
+
+Four accounts configured via isolated `$HOME` directories (aliases in `~/.zshrc`):
+
+| Alias | Email |
+|-------|-------|
+| `colab` | hackxie1998@gmail.com |
+| `cb` | stefaniehu929@gmail.com |
+| `cc` | xbetterdetermine@gmail.com |
+| `clb` | xieminghack@gmail.com |
+
+See [`docs/multi-account-colab.md`](docs/multi-account-colab.md) for the full guide. Only 1 GPU per free account.
 
 ## Key Gotchas
 
@@ -62,3 +76,7 @@ colab stop -s training                            # release VM
 - Detached subprocess training needs `PYTHONUNBUFFERED=1` + `start_new_session=True`
 - Unrecognized `--gpu` values silently fallback to A100 then fail with 400
 - `colab run` is ideal for one-shot jobs; it provisions → runs → tears down automatically
+- vLLM latest wheels need CUDA 13; Colab T4 has CUDA 12.8 — use transformers directly or pin vLLM<0.8
+- `datasets>=4.0` breaks older HF datasets (hotpot_qa, squad) — pre-download data locally
+- `colab upload` can't create subdirectories on VM — upload to root, then move via exec
+- AWQ models need `gptqmodel` on Colab, not just `autoawq`
