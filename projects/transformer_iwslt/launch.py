@@ -59,7 +59,7 @@ if os.path.exists(hf_cache):
 env = os.environ.copy()
 env["PYTHONUNBUFFERED"] = "1"
 
-cmd = f"{sys.executable} -u /content/train.py --exp_id {exp_id}"
+cmd = f"{sys.executable} -u /content/train.py --exp_id {exp_id} --max_train_pairs 50000"
 if resume_flag:
     cmd += f" {resume_flag}"
 

@@ -327,6 +327,8 @@ def main():
     parser.add_argument("--max_len", type=int, default=128)
     parser.add_argument("--beam_size", type=int, default=4)
     parser.add_argument("--output_dir", default="/content")
+    parser.add_argument("--max_train_pairs", type=int, default=0,
+                        help="Limit training pairs (0 = use all). 50000 fits T4 session window.")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -350,6 +352,9 @@ def main():
     split = int(0.8 * len(pairs))
     train_pairs = pairs[:split]
     val_pairs = pairs[split:]
+    if args.max_train_pairs > 0:
+        train_pairs = train_pairs[:args.max_train_pairs]
+        print(f"[train] Limited to {len(train_pairs)} training pairs")
 
     train_ds = TranslationDataset(train_pairs, tokenizer, args.max_len, name="train")
     val_ds = TranslationDataset(val_pairs, tokenizer, args.max_len, name="val")
