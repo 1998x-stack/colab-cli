@@ -48,6 +48,13 @@ subprocess.check_call(
 )
 print("[launch] Dependencies installed")
 
+# --- Clear stale HF datasets cache (avoids LocalFileSystem error) ---
+import shutil
+hf_cache = os.path.expanduser("~/.cache/huggingface/datasets")
+if os.path.exists(hf_cache):
+    shutil.rmtree(hf_cache)
+    print("[launch] Cleared HF datasets cache")
+
 # --- Spawn training ---
 env = os.environ.copy()
 env["PYTHONUNBUFFERED"] = "1"

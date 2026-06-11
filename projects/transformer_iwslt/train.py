@@ -24,11 +24,10 @@ SPECIAL_TOKENS = ["[PAD]", "[SOS]", "[EOS]", "[UNK]"]
 
 
 def load_iwslt_pairs() -> list[tuple[str, str]]:
-    """Load IWSLT'17 De-En via datasets (pinned to 2.14.0 for script support)."""
+    """Load IWSLT'17 De-En via datasets."""
     from datasets import load_dataset
     print("[data] Loading IWSLT'17 De-En (may download ~25MB)...")
-    ds = load_dataset("IWSLT/iwslt2017", "iwslt2017-de-en", split="train",
-                      trust_remote_code=True, download_mode="force_redownload")
+    ds = load_dataset("IWSLT/iwslt2017", "iwslt2017-de-en", split="train")
     pairs = [(item["translation"]["de"], item["translation"]["en"]) for item in ds]
     print(f"[data] Loaded {len(pairs)} sentence pairs")
     return pairs
