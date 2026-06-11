@@ -1,6 +1,5 @@
 """Checkpoint save/load helpers for training resume across Colab sessions."""
-import torch
-import os
+import io, gzip, torch, os
 
 
 def save_checkpoint(
@@ -16,7 +15,7 @@ def save_checkpoint(
     wall_time_s: float,
     config: dict,
 ):
-    torch.save({
+    ckpt = {
         "model_state": model.state_dict(),
         "optimizer_state": optimizer.state_dict(),
         "scheduler_state": scheduler.state_dict() if scheduler else None,
@@ -27,12 +26,23 @@ def save_checkpoint(
         "tokens_processed": tokens_processed,
         "wall_time_s": wall_time_s,
         "config": config,
-    }, path)
+    }
+    # Gzip the checkpoint to reduce size ~50% (critical for proxy downloads from Colab)
+    buf = io.BytesIO()
+    with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=3) as f:
+        torch.save(ckpt, f)
+    with open(path, "wb") as f:
+        f.write(buf.getvalue())
 
 
 def load_checkpoint(path: str, model: torch.nn.Module, device: torch.device):
     """Returns (optimizer_state, scheduler_state, epoch, metrics_dict, config). Caller restores optimizer."""
-    ckpt = torch.load(path, map_location=device, weights_only=False)
+    # Try gzip first (new format), fall back to raw torch.save (old format)
+    try:
+        with gzip.GzipFile(path, "rb") as f:
+            ckpt = torch.load(f, map_location=device, weights_only=False)
+    except (gzip.BadGzipFile, OSError):
+        ckpt = torch.load(path, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model_state"])
     return (
         ckpt["optimizer_state"],
