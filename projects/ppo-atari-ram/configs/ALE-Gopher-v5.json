@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/Gopher-v5",
+  "n_actions": 8,
+  "solved_threshold": 5000,
+  "network": "mlp-medium",
+  "total_timesteps": 1000000
+}

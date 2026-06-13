@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/Bowling-v5",
+  "n_actions": 6,
+  "solved_threshold": 200,
+  "network": "mlp-small",
+  "total_timesteps": 500000
+}

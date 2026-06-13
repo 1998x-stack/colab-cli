@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/Asteroids-v5",
+  "n_actions": 14,
+  "solved_threshold": 1000,
+  "network": "mlp-large",
+  "total_timesteps": 1000000
+}

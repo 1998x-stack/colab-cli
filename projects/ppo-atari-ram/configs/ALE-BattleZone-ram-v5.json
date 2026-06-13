@@ -1,7 +1,0 @@
-{
-  "env_id": "ALE/BattleZone-ram-v5",
-  "n_actions": 18,
-  "solved_threshold": 30000,
-  "network": "mlp-medium",
-  "total_timesteps": 1000000
-}

@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/SpaceInvaders-v5",
+  "n_actions": 6,
+  "solved_threshold": 1000,
+  "network": "mlp-medium",
+  "total_timesteps": 500000
+}

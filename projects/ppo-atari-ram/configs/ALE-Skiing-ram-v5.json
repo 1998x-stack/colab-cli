@@ -1,7 +1,0 @@
-{
-  "env_id": "ALE/Skiing-ram-v5",
-  "n_actions": 3,
-  "solved_threshold": 0,
-  "network": "mlp-small",
-  "total_timesteps": 500000
-}

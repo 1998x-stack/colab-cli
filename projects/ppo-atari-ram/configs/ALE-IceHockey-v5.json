@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/IceHockey-v5",
+  "n_actions": 18,
+  "solved_threshold": 0,
+  "network": "mlp-medium",
+  "total_timesteps": 500000
+}

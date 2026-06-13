@@ -1,7 +1,0 @@
-{
-  "env_id": "ALE/Amidar-ram-v5",
-  "n_actions": 10,
-  "solved_threshold": 1000,
-  "network": "mlp-large",
-  "total_timesteps": 1000000
-}

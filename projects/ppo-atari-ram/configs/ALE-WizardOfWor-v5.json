@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/WizardOfWor-v5",
+  "n_actions": 10,
+  "solved_threshold": 5000,
+  "network": "mlp-medium",
+  "total_timesteps": 500000
+}

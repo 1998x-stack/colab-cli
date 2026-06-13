@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/Qbert-v5",
+  "n_actions": 6,
+  "solved_threshold": 10000,
+  "network": "mlp-medium",
+  "total_timesteps": 1000000
+}

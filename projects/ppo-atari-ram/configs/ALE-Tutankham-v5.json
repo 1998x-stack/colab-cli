@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/Tutankham-v5",
+  "n_actions": 8,
+  "solved_threshold": 200,
+  "network": "mlp-medium",
+  "total_timesteps": 500000
+}

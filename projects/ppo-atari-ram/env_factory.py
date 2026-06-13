@@ -12,7 +12,7 @@ def make_ram_env(env_id: str, num_envs: int = 4, seed: int = 42):
 
     def _make_env(rank: int):
         def _init():
-            env = gym.make(env_id, max_episode_steps=108000)
+            env = gym.make(env_id, max_episode_steps=108000, obs_type="ram")
             env = gym.wrappers.RecordEpisodeStatistics(env)
             env = gym.wrappers.TransformObservation(
                 env, lambda obs: obs.astype(np.float32) / 255.0
@@ -30,7 +30,7 @@ def get_env_info(env_id: str):
 
     Returns (128, n_actions) for RAM envs. Creates and disposes a temp env.
     """
-    env = gym.make(env_id)
+    env = gym.make(env_id, obs_type="ram")
     obs_dim = env.observation_space.shape[0]
     n_actions = env.action_space.n
     env.close()

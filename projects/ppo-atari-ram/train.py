@@ -22,7 +22,7 @@ from env_factory import make_ram_env
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--envs", nargs="+",
-                    default=["ALE/Pong-ram-v5", "ALE/Asterix-ram-v5", "ALE/MsPacman-ram-v5"])
+                    default=["ALE/Pong-v5", "ALE/Asterix-v5", "ALE/MsPacman-v5"])
 parser.add_argument("--out_dir", default="/content/ppo-atari-output")
 parser.add_argument("--config_dir", default="configs")
 parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -133,7 +133,7 @@ def plot_comparison(all_env_histories, out_dir):
 @torch.no_grad()
 def evaluate(agent, env_id, n_episodes=5):
     import gymnasium as gym
-    eval_env = gym.make(env_id, max_episode_steps=108000)
+    eval_env = gym.make(env_id, max_episode_steps=108000, obs_type="ram")
     rewards = []
     for _ in range(n_episodes):
         obs, _ = eval_env.reset()

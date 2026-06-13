@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/FishingDerby-v5",
+  "n_actions": 18,
+  "solved_threshold": 20,
+  "network": "mlp-medium",
+  "total_timesteps": 500000
+}

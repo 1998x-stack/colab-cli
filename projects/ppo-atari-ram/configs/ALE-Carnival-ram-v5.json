@@ -1,7 +1,0 @@
-{
-  "env_id": "ALE/Carnival-ram-v5",
-  "n_actions": 6,
-  "solved_threshold": 5000,
-  "network": "mlp-medium",
-  "total_timesteps": 500000
-}

@@ -1,7 +1,0 @@
-{
-  "env_id": "ALE/Atlantis-ram-v5",
-  "n_actions": 4,
-  "solved_threshold": 100000,
-  "network": "mlp-small",
-  "total_timesteps": 500000
-}

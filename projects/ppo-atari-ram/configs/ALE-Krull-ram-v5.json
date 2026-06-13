@@ -1,7 +1,0 @@
-{
-  "env_id": "ALE/Krull-ram-v5",
-  "n_actions": 18,
-  "solved_threshold": 8000,
-  "network": "mlp-medium",
-  "total_timesteps": 1000000
-}
