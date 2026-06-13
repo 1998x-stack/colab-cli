@@ -275,6 +275,7 @@ VRAM fit (T4 15.6 GB): SmolLM2-1.7B ~12.8 GB. Qwen2.5-3B likely fits. 7B needs A
 
 - After writing docs/charts, open them for review. Don't claim "done" without visual verification.
 - Write gotchas.md per-project proactively — don't wait to be asked.
+- **After every phased task or milestone completion: `git commit` + `git push`.** No uncommitted work left behind. Commits capture the state that worked; the next session picks up from a clean tree.
 
 ### Gotcha triage: where to save what
 
