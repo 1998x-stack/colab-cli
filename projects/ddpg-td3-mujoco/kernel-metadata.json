@@ -1,0 +1,14 @@
+{
+  "id": "xieming1998/ddpg-td3-mujoco",
+  "title": "DDPG TD3 MuJoCo",
+  "code_file": "train.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "model_sources": [],
+  "kernel_sources": []
+}
