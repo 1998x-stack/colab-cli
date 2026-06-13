@@ -1,0 +1,12 @@
+target-version = "py310"
+
+[lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E402",  # Module-level import not at top: intentional in Colab projects (lazy import for non-pre-installed pkgs)
+    "E501",  # Line too long: ML code has long comments, import paths, and tensor shapes
+    "E741",  # Ambiguous variable name: l/O are idiomatic loop/attention vars
+]
+
+[format]
+quote-style = "preserve"
