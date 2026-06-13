@@ -29,15 +29,15 @@ import matplotlib.pyplot as plt
 # ── Args ────────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", default="BeIR/nfcorpus")
-parser.add_argument("--fasttext_dim", type=int, default=100)
-parser.add_argument("--fasttext_epoch", type=int, default=10)
+parser.add_argument("--fasttext_dim", type=int, default=200)
+parser.add_argument("--fasttext_epoch", type=int, default=15)
 parser.add_argument("--bm25_k1", type=float, default=1.5)
 parser.add_argument("--bm25_b", type=float, default=0.75)
 parser.add_argument("--hnsw_M", type=int, default=16)
 parser.add_argument("--hnsw_ef_construction", type=int, default=200)
 parser.add_argument("--hnsw_ef_search", type=int, default=64)
-parser.add_argument("--hybrid_alpha", type=float, default=0.3,
-                    help="BM25 weight in hybrid fusion (0=all dense, 1=all sparse)")
+parser.add_argument("--hybrid_alpha", type=float, default=0.5,
+                    help="BM25 weight in weighted-score fusion (0=all dense, 1=all sparse)")
 parser.add_argument("--top_k", type=int, default=100)
 parser.add_argument("--out_dir", default="/content/rag-fasttext-output")
 parser.add_argument("--device", default="cpu")
@@ -234,41 +234,50 @@ def faiss_search(query_text, k=100):
 
 
 # ── Hybrid Fusion ────────────────────────────────────────────────────────────
-def minmax_normalize(scores):
-    """Min-max normalize a dict of {id: score} to [0, 1]."""
-    if not scores:
-        return {}
-    vals = np.array(list(scores.values()))
-    vmin, vmax = vals.min(), vals.max()
-    if vmax == vmin:
-        return {k: 1.0 for k in scores}
-    return {k: (v - vmin) / (vmax - vmin) for k, v in scores.items()}
+def reciprocal_rank_fusion(ranked_lists, k=60):
+    """RRF: score(d) = sum_i 1/(k + rank_i(d)) — no normalization needed."""
+    scores = defaultdict(float)
+    for ranked in ranked_lists:
+        for rank, (doc_id, _) in enumerate(ranked, start=1):
+            scores[doc_id] += 1.0 / (k + rank)
+    sorted_ids = sorted(scores, key=scores.get, reverse=True)
+    return [(doc_id, scores[doc_id]) for doc_id in sorted_ids]
 
 
-def hybrid_search(query_text, k=100, alpha=None):
-    """Weighted fusion: score = alpha * bm25_norm + (1-alpha) * dense_norm."""
+def weighted_score_fusion(query_text, k=100, alpha=None):
+    """Weighted sum with min-max normalization (original method)."""
     if alpha is None:
         alpha = args.hybrid_alpha
-
-    # Get ranked lists from both methods
     bm25_results = {idx: score for idx, score in bm25_search(query_text, k=k)}
     dense_results = {idx: score for idx, score in faiss_search(query_text, k=k)}
 
-    # Normalize scores
-    bm25_norm = minmax_normalize(bm25_results)
-    dense_norm = minmax_normalize(dense_results)
+    # Min-max normalize
+    def normalize(scores):
+        if not scores:
+            return {}
+        vals = np.array(list(scores.values()))
+        vmin, vmax = vals.min(), vals.max()
+        if vmax == vmin:
+            return {k: 1.0 for k in scores}
+        return {k: (v - vmin) / (vmax - vmin) for k, v in scores.items()}
 
-    # Fuse
+    bm25_norm = normalize(bm25_results)
+    dense_norm = normalize(dense_results)
     all_ids = set(bm25_norm.keys()) | set(dense_norm.keys())
     fused = {}
     for doc_id in all_ids:
         b = bm25_norm.get(doc_id, 0.0)
         d = dense_norm.get(doc_id, 0.0)
         fused[doc_id] = alpha * b + (1 - alpha) * d
-
-    # Sort and return top-k
     sorted_ids = sorted(fused, key=fused.get, reverse=True)[:k]
     return [(doc_id, fused[doc_id]) for doc_id in sorted_ids]
+
+
+def hybrid_search(query_text, k=100, alpha=None):
+    """RRF fusion (primary method) — robust, no score normalization."""
+    bm25_ranked = bm25_search(query_text, k=k)
+    dense_ranked = faiss_search(query_text, k=k)
+    return reciprocal_rank_fusion([bm25_ranked, dense_ranked], k=60)
 
 
 # ── Evaluation Metrics ───────────────────────────────────────────────────────
@@ -372,9 +381,11 @@ def run_evaluation(search_fn, method_name, k=100):
 def plot_results(all_metrics, out_dir):
     """4-panel figure comparing BM25 vs FastText vs Hybrid."""
     methods = [m["method"] for m in all_metrics]
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    n = len(methods)
+    fig, axes = plt.subplots(2, 2, figsize=(max(14, n * 2), 12))
     fig.suptitle("RAG Retrieval Comparison -- BeIR/nfcorpus", fontsize=14, fontweight="bold")
-    colors = ["#e74c3c", "#3498db", "#2ecc71"]
+    colors = ["#e74c3c", "#3498db", "#2ecc71", "#e67e22", "#9b59b6",
+              "#1abc9c", "#f39c12", "#2980b9"][:n]
 
     # Panel 1: NDCG@10 bars
     ax = axes[0, 0]
@@ -404,17 +415,18 @@ def plot_results(all_metrics, out_dir):
     ax = axes[1, 0]
     metric_names = ["NDCG@10", "MAP@100", "Recall@100", "MRR"]
     x = np.arange(len(metric_names))
-    width = 0.25
+    width = min(0.25, 0.8 / n)  # adaptive width
     for i, m in enumerate(all_metrics):
         vals = [m["ndcg@10"], m["map@100"], m["recall@100"], m["mrr"]]
         bars = ax.bar(x + i * width, vals, width, label=m["method"], color=colors[i], edgecolor="white")
         for bar, v in zip(bars, vals):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.005,
-                    f"{v:.3f}", ha="center", fontsize=7, rotation=90)
-    ax.set_xticks(x + width)
+            if v > 0.001:
+                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.002,
+                        f"{v:.3f}", ha="center", fontsize=6, rotation=90)
+    ax.set_xticks(x + width * (n - 1) / 2)
     ax.set_xticklabels(metric_names)
     ax.set_title("All Metrics Comparison")
-    ax.legend(fontsize=8)
+    ax.legend(fontsize=7)
     ax.grid(True, alpha=0.3, axis="y")
 
     # Panel 4: Latency comparison
@@ -462,11 +474,23 @@ with open(CSV_PATH, "w", newline="") as csv_file:
     dense_metrics = run_evaluation(faiss_search, "FastText+FAISS", k=args.top_k)
     all_metrics.append(dense_metrics)
 
-    # Evaluate Hybrid
-    hybrid_metrics = run_evaluation(
-        lambda q, k: hybrid_search(q, k=k, alpha=args.hybrid_alpha),
-        "Hybrid", k=args.top_k)
-    all_metrics.append(hybrid_metrics)
+    # Evaluate RRF (no alpha needed — parameter-free)
+    rrf_metrics = run_evaluation(
+        lambda q, k: hybrid_search(q, k=k), "Hybrid-RRF", k=args.top_k)
+    all_metrics.append(rrf_metrics)
+
+    # Sweep weighted-fusion alphas to find best
+    best_alpha_metrics = None
+    best_alpha_ndcg = 0
+    for alpha in [0.1, 0.3, 0.5, 0.7, 0.9]:
+        m = run_evaluation(
+            lambda q, k, a=alpha: weighted_score_fusion(q, k=k, alpha=a),
+            f"Hybrid-α={alpha:.1f}", k=args.top_k)
+        all_metrics.append(m)
+        if m["ndcg@10"] > best_alpha_ndcg:
+            best_alpha_ndcg = m["ndcg@10"]
+            best_alpha_metrics = m
+    log(f"Best weighted alpha: {best_alpha_metrics['method']} (NDCG@10={best_alpha_ndcg:.4f})")
 
     # Write CSV rows
     for m in all_metrics:
