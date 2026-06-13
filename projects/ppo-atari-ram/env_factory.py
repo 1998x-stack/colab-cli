@@ -16,7 +16,8 @@ def make_ram_env(env_id: str, num_envs: int = 4, seed: int = 42):
             env = gym.make(env_id, max_episode_steps=108000, obs_type="ram")
             env = gym.wrappers.RecordEpisodeStatistics(env)
             env = gym.wrappers.TransformObservation(
-                env, lambda obs: obs.astype(np.float32) / 255.0
+                env, lambda obs: obs.astype(np.float32) / 255.0,
+                observation_space=None,
             )
             env.reset(seed=seed + rank)
             return env
