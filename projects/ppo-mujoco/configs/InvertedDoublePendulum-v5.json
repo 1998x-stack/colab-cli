@@ -1,0 +1,7 @@
+{
+  "env_id": "InvertedDoublePendulum-v5",
+  "obs_dim": 11,
+  "n_actions": 1,
+  "network": "mlp-medium",
+  "total_timesteps": 500000
+}

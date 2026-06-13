@@ -1,0 +1,7 @@
+{
+  "env_id": "Walker2d-v5",
+  "obs_dim": 17,
+  "n_actions": 6,
+  "network": "mlp-medium",
+  "total_timesteps": 1000000
+}

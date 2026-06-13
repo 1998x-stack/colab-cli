@@ -1,0 +1,7 @@
+{
+  "env_id": "Swimmer-v5",
+  "obs_dim": 8,
+  "n_actions": 2,
+  "network": "mlp-small",
+  "total_timesteps": 500000
+}

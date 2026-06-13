@@ -1,0 +1,7 @@
+{
+  "env_id": "Pusher-v5",
+  "obs_dim": 23,
+  "n_actions": 7,
+  "network": "mlp-medium",
+  "total_timesteps": 1000000
+}
