@@ -80,17 +80,19 @@ class ResMLPActorCritic(nn.Module):
         self.init_weights()
 
     def init_weights(self):
-        for m in [self.fc_in] + list(self.res_blocks):
-            for sub in (m if isinstance(m, nn.Sequential) else [m]):
-                if isinstance(sub, nn.Linear):
-                    orthogonal_init(sub, gain=1.0)
+        orthogonal_init(self.fc_in, gain=1.0)
+        for block in self.res_blocks:
+            for layer in block:
+                if isinstance(layer, nn.Linear):
+                    orthogonal_init(layer, gain=1.0)
         orthogonal_init(self.actor, gain=0.01)
         orthogonal_init(self.critic, gain=1.0)
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         h = F.relu(self.ln_in(self.fc_in(x)))
         for block in self.res_blocks:
-            h = h + block(h) if h.shape == block(h).shape else block(h)
+            residual = block(h)
+            h = h + residual if h.shape == residual.shape else residual
         return self.actor(h), self.critic(h)
 
     def get_action_and_value(
