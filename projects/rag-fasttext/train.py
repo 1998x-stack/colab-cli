@@ -29,8 +29,8 @@ import matplotlib.pyplot as plt
 # ── Args ────────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", default="BeIR/nfcorpus")
-parser.add_argument("--fasttext_dim", type=int, default=200)
-parser.add_argument("--fasttext_epoch", type=int, default=15)
+parser.add_argument("--fasttext_dim", type=int, default=100)
+parser.add_argument("--fasttext_epoch", type=int, default=10)
 parser.add_argument("--bm25_k1", type=float, default=1.5)
 parser.add_argument("--bm25_b", type=float, default=0.75)
 parser.add_argument("--hnsw_M", type=int, default=16)
