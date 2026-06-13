@@ -34,7 +34,7 @@ echo "[fetch] Downloading..."
 
 # Step 3: Extract
 cd "$LOCAL_OUT"
-tar -xzf "$OUT_TAR" 2>/dev/null || {
+tar -xzf "$OUT_TAR" --strip-components=1 2>/dev/null || {
     echo "[fetch] WARNING: extract failed"
     exit 0
 }
