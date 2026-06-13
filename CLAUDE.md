@@ -75,7 +75,20 @@ export HTTP_PROXY=http://127.0.0.1:7890
 export ALL_PROXY=socks5://127.0.0.1:7890
 ```
 
-Which works changes per session — flip and retry. REST operations (`colab new`, `colab stop`, `colab sessions`, `colab download`) always use the proxy. Only `colab exec`/`colab upload` might need `no_proxy`.
+Which works changes per session — flip and retry.
+
+**Diagnosing GPU provisioning failures (2026-06-13):**
+
+| Config | Error on `colab new --gpu T4` | Meaning |
+|--------|-------------------------------|---------|
+| A (SOCKS5 + no_proxy) | `Service Unavailable` (503) | Ambiguous — could be proxy issue OR GPU exhaustion |
+| B (HTTP CONNECT) | `Precondition Failed` (412) / `TooManyAssignmentsError` | Genuine GPU quota exhaustion |
+
+**Procedure:** If config A returns 503, flip to config B. If config B returns 412, GPU is genuinely exhausted — try other accounts (`cb`, `cc`, `clb`). If ALL accounts return 412, GPU is globally unavailable — use CPU fallback (omit `--gpu`). CPU is fine for lightweight workloads (tabular RL, small models, debugging).
+
+Config B handles the full workflow (new, upload, exec, download) without switching — when in doubt, start with B.
+
+REST operations (`colab new`, `colab stop`, `colab sessions`, `colab download`) always use the proxy. Only `colab exec`/`colab upload` might need `no_proxy`.
 
 **SOCKS5 needs PySocks for REST:** `pip install requests[socks]` or use `http://` style for REST.
 
@@ -90,6 +103,94 @@ These are project-specific or hyper-specific operational constraints:
 - **CUDA OOM during eval even when training fits** (transformer_iwslt): Beam search allocates extra tensors. Use `torch.cuda.empty_cache()` before eval. Set `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
 - **First Colab session rarely produces useful training**: Data download + tokenizer training + CUDA JIT = 7-10 min overhead. Combined with ~12-15 min effective exec window, first session dies before completing an epoch. Second session (data cached on VM) works normally.
 - **Kaggle log streaming buffers**: GPU+internet kernels may show zero logs until completion. A 37-min P100 run produced all 105 log lines atomically. Empty logs ≠ stuck. See kaggle-cli skill monitoring section.
+
+## Cron watchtower for long-running Colab jobs
+
+Colab's WebSocket is unreliable from China — `colab exec` drops after 12-15 min, logs buffer, and you can't watch training live. **Set up a cron watchtower** that periodically fetches outputs from the VM via REST (`colab download`), which survives WebSocket drops.
+
+**Pattern (2026-06-13, rl-sarsa-gym):**
+
+1. Training writes all artifacts to a single output directory (`/content/<project>-output/`)
+2. A local `fetch.sh` tars on VM → downloads tar → extracts locally → prints tail
+3. A `CronCreate` job fires every 2-5 minutes calling the fetch steps
+4. Each cron tick surfaces the latest metrics and logs, enabling mid-training corrections
+
+```bash
+# Cron prompt template:
+# 1. Check session alive: colab sessions | grep <session>
+# 2. Tar output on VM: echo '... subprocess.run(["tar",...]) ...' | colab exec -s <name> --timeout 15
+# 3. Download: colab download -s <name> /content/<output>.tar.gz <local>/output.tar.gz
+# 4. Extract: tar -xzf output.tar.gz
+# 5. Report: tail log + tail CSV + ls pngs/
+```
+
+**Why this matters:**
+- **Live monitoring without WebSocket:** Download goes through REST, which stays up even when exec is dead
+- **Early correction:** See plateauing/divergence early — fix hyperparameters and re-launch before the session expires
+- **Incremental sync:** Each fetch pulls the latest PNGs and metrics, giving a real-time dashboard of training health
+- **Session-aware:** If the session died between ticks, the cron catches it immediately (no wasted wait)
+
+**When to use:** Any Colab training run expected to last >5 minutes. Cancel the cron when training completes; the fetched artifacts remain as a permanent record.
+
+**Caveat:** `colab exec` (used for tar) can still fail via WebSocket. If exec fails, fall back to `colab download` directly on known output paths — the training process may have written new files even if exec is unreachable.
+
+## High-signal training outputs (AI/ML/RL)
+
+Every training script must produce three artifact types. The goal is **glance-and-decide**: one look at the fetched outputs tells you whether to let it run, fix and re-launch, or stop.
+
+### 1. Logs (`logs/train.log`)
+
+Timestamped per-N-episodes, not per-step. Each line must be self-contained — copy-paste-able into a comparison.
+
+```
+[HH:MM:SS] Ep 1200 | reward=203 | avg100=153.6 | eps=0.165 | q_mean=0.347 | elapsed=17s
+```
+
+Rules:
+- Log at fixed intervals (every 20-50 episodes), plus first and last episode
+- Include the key metric + its moving average (avg100) — raw reward alone is noise
+- Include a convergence indicator (epsilon, learning rate, TD error) to distinguish "still exploring" from "plateaued"
+- Include elapsed time — catch slowdowns early (memory leak, CPU bottleneck)
+- Log evaluation runs separately with greedy/noiseless policy
+
+### 2. Figures (`pngs/training_curves.png`)
+
+One multi-panel figure, overwritten every N episodes (100-200). This is the visual dashboard.
+
+Minimum panels for RL:
+- **Reward curve** (raw + moving average + solved threshold line)
+- **Episode length** (steps survived)
+- **Exploration decay** (epsilon over time)
+- **Value distribution** (Q-value histogram, loss curve, or entropy)
+
+Rules:
+- Always include a horizontal reference line (e.g., "solved = 195") — naked curves are ambiguous
+- Overwrite, don't accumulate files — `fetch.sh` always gets the latest snapshot
+- Use `matplotlib.use("Agg")` for headless VMs
+
+### 3. Metrics CSV (`metrics.csv`)
+
+One row per episode, all scalar metrics as columns. This is the raw data for offline analysis.
+
+```
+episode,reward,steps,epsilon,avg100_reward,q_mean,q_max,elapsed_s,td_error_mean
+```
+
+Rules:
+- Write header on creation, append each episode — crash-safe (no in-memory accumulation)
+- Include everything needed to reproduce a plot from the CSV alone
+- Final row should be the last completed episode — never missing data
+
+### Why this matters
+
+| Without structured outputs | With structured outputs |
+|---------------------------|------------------------|
+| "Is it learning? Not sure, let me wait longer" | avg100 climbed 22→148 in 5 min, plateauing — fix epsilon decay now |
+| 30 min wasted on a diverged run | Caught at minute 2 from Q-value histogram blowing up |
+| Can't compare v1 vs v2 | `diff metrics.csv` shows exactly where v2 diverged |
+| Session dies, all evidence lost | Last cron fetch preserved everything up to ep 2500 |
+
+**Bottom line:** The cron watchtower fetches artifacts. Artifact quality determines whether the watchtower sees anything useful. Design outputs so that a 5-second glance at the fetched tail tells you the next action.
 
 ## Deploy scripts (bash)
 
@@ -174,6 +275,18 @@ VRAM fit (T4 15.6 GB): SmolLM2-1.7B ~12.8 GB. Qwen2.5-3B likely fits. 7B needs A
 
 - After writing docs/charts, open them for review. Don't claim "done" without visual verification.
 - Write gotchas.md per-project proactively — don't wait to be asked.
+
+### Gotcha triage: where to save what
+
+When a problem, surprise, or workaround is discovered during a session, route it by scope:
+
+| Scope | Destination | Example |
+|-------|------------|---------|
+| Specific to one project | `projects/<project>/gotchas.md` | "PCA resize must use fixed [H,W], not single int" (alexnet) |
+| Colab/Kaggle CLI mechanics | `.claude/skills/<skill>/references/gotchas.md` | "`colab upload` creates file not dir when path missing" (colab-cli) |
+| ML/model-wide, not CLI-specific | `docs/model-gotchas.md` | "Beam search eval OOMs even when training fits — allocate extra cache" |
+
+**Decision rule:** If the learning is about *how to use the tool* (colab exec, upload, proxy, sessions), it goes to the skill gotchas. If it's about *the model/algorithm behavior* (init scheme, CUDA OOM, convergence), it goes to the project gotchas. If it applies across projects (any transformer, any RL agent), it goes to `docs/model-gotchas.md`. When uncertain, default to the project gotchas — it's easier to promote later than to find a buried note.
 
 ## Multi-session awareness
 
