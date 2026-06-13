@@ -33,6 +33,7 @@ projects/
 ├── transformer_iwslt/    # Transformer (Attention Is All You Need) on IWSLT'14 De->En
 ├── vllm-compare/         # vLLM model benchmarks on Colab T4
 ├── vit-cifar10/          # ViT on CIFAR-10 (Kaggle, 3-config experiment)
+├── cnn-quantization/     # CNN quantization comparison: FP32 vs FP16 vs INT8 vs INT4
 ├── rl-sac/ cnn-cifar10/ rl-dqn-atari/ nanogpt/ nanochat-colab/ rnn-imdb/ cuda-tutorial/
 └── vllm-rag/ ml-tutorial/ autoresearch-t4/
 ```
