@@ -21,6 +21,9 @@ class TransformerConfig:
     block_size: int = 256  # max context length
     dropout: float = 0.1
 
+    # --- Data ---
+    text_limit: int = 0  # max chars to use (0 = full text, set to 50000 for quick Colab runs)
+
     # --- Training ---
     batch_size: int = 64
     max_epochs: int = 10

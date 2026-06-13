@@ -94,6 +94,9 @@ def main():
 
     # --- Data ---
     text = load_shakespeare("/tmp/shakespeare")
+    if config.text_limit > 0:
+        text = text[:config.text_limit]
+        print(f"[data] Truncated text to {config.text_limit} chars")
     dataset = CharDataset(text, config.block_size)
     config.vocab_size = dataset.vocab_size
 

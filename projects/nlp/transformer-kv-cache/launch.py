@@ -32,7 +32,7 @@ def main():
         f"{sys.executable} -u /content/train.py "
         f"--output_dir {OUTPUT_DIR} "
         f"--device cuda --max_epochs 10 "
-        f"--batch_size 64 --block_size 256 "
+        f"--batch_size 128 --block_size 128 --text_limit 50000 "
     )
 
     print(f"[launch] Running: {cmd}")
