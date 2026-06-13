@@ -5,7 +5,7 @@ import sys
 import os
 import time
 
-DEPS = ["fasttext", "faiss-cpu", "scipy", "numpy", "datasets", "matplotlib", "scikit-learn"]
+DEPS = ["fasttext", "faiss-cpu>=1.9.0", "scipy", "numpy", "datasets", "matplotlib", "scikit-learn"]
 SCRIPT = "train.py"
 LOG = "/content/rag-fasttext-output/logs/train.log"
 
