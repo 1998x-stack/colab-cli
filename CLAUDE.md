@@ -98,10 +98,11 @@ REST operations (`colab new`, `colab stop`, `colab sessions`, `colab download`) 
 
 These are project-specific or hyper-specific operational constraints:
 
+- **Colab free-tier GPU sessions die after ~10 min (2026-06-13发现)**: 连续5个session实测——free-tier GPU会在8-10分钟后被Colab回收，与项目/账号无关。这是动态GPU配额，不是bug。**使用Colab GPU前必须预估训练时间，确保单次训练在10分钟内完成。如果超时，考虑：(a) 用小模型/小数据集热身，(b) 分配到多个Colab session并行，(c) 超时任务用Kaggle（30h/week GPU，session持续数小时）。** 预估方法：总steps ÷ 预估steps/sec ÷ 60 = 分钟数。MuJoCo约3000 steps/sec，Atari RAM约350 steps/sec（MLP），Atari pixels约50 steps/sec（CNN）。
+- **First Colab session rarely produces useful training**: Data download + tokenizer training + CUDA JIT = 7-10 min overhead. Combined with ~10 min effective GPU window, first session almost never completes training. Use a short warmup session first to cache data, then re-provision for the real run.
 - **Checkpoint downloads >600MB fail through proxy**: Full checkpoint with optimizer state = ~1GB, proxy breaks at ~624MB (IncompleteRead). Save a separate **weights-only checkpoint** (~120-233MB) for download.
 - **BLEU/beam search is the hidden bottleneck** (transformer_iwslt): Beam search eval on full val set takes hours. Use 100-sentence subset with greedy decode for training-time eval.
 - **CUDA OOM during eval even when training fits** (transformer_iwslt): Beam search allocates extra tensors. Use `torch.cuda.empty_cache()` before eval. Set `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
-- **First Colab session rarely produces useful training**: Data download + tokenizer training + CUDA JIT = 7-10 min overhead. Combined with ~12-15 min effective exec window, first session dies before completing an epoch. Second session (data cached on VM) works normally.
 - **Kaggle log streaming buffers**: GPU+internet kernels may show zero logs until completion. A 37-min P100 run produced all 105 log lines atomically. Empty logs ≠ stuck. See kaggle-cli skill monitoring section.
 
 ## Cron watchtower for long-running Colab jobs
@@ -265,6 +266,12 @@ VRAM fit (T4 15.6 GB): SmolLM2-1.7B ~12.8 GB. Qwen2.5-3B likely fits. 7B needs A
 
 ## Pre-deploy checklist
 
+- **Time-budget check (MANDATORY)**: Estimate total runtime. Formula: `total_steps ÷ estimated_steps_per_sec ÷ 60 = minutes`. Must fit within 10 min for Colab GPU. If >10 min: reduce steps, use smaller model, split across sessions, or use Kaggle.
+  - T4 MuJoCo (MLP, 1 env): ~3000 steps/sec
+  - T4 Atari RAM (MLP, 4 envs): ~350 steps/sec
+  - T4 Atari pixels (CNN, 4 envs): ~50 steps/sec
+  - T4 tabular RL (CPU-bound): ~2000 steps/sec
+  - Kaggle P100 MuJoCo: ~5000 steps/sec
 - Run forward pass locally (random tensor) to verify model output shape and no NaN
 - Fit PCA on a sample locally to verify resize → stack doesn't crash
 - Validate data pipeline loads images correctly (check first batch shapes + labels)
