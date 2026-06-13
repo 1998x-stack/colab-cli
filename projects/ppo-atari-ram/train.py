@@ -219,7 +219,7 @@ for env_idx, env_id in enumerate(args.envs):
             rollouts["log_probs"][t] = log_probs
             rollouts["rewards"][t] = torch.FloatTensor(rewards)
             rollouts["dones"][t] = torch.FloatTensor(dones)
-            rollouts["values"][t] = values
+            rollouts["values"][t] = values.squeeze(-1)
 
             obs = torch.FloatTensor(next_obs)
             dones_t = torch.FloatTensor(dones)
