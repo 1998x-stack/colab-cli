@@ -102,6 +102,7 @@ def plot_comparison(all_env_histories, out_dir):
 def evaluate(agent, env_id, n_episodes=10):
     import gymnasium as gym
     eval_env = gym.make(env_id)
+    eval_env = gym.wrappers.NormalizeObservation(eval_env)
     rewards = []
     for _ in range(n_episodes):
         obs, _ = eval_env.reset()
