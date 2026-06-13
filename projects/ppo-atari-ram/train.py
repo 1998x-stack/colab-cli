@@ -132,6 +132,7 @@ def plot_comparison(all_env_histories, out_dir):
 # ── Eval ─────────────────────────────────────────────────────────────────
 @torch.no_grad()
 def evaluate(agent, env_id, n_episodes=5):
+    import ale_py  # registers ALE namespace
     import gymnasium as gym
     eval_env = gym.make(env_id, max_episode_steps=108000, obs_type="ram")
     rewards = []

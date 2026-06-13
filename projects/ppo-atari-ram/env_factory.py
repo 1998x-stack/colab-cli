@@ -1,4 +1,5 @@
 """Atari RAM environment factory with vectorized envs."""
+import ale_py  # registers ALE namespace in gymnasium
 import numpy as np
 import gymnasium as gym
 
