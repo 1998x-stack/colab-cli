@@ -64,10 +64,11 @@ log(f"Loading dataset: {args.dataset}")
 
 from datasets import load_dataset
 
-# BeIR/nfcorpus has 3 splits: 'corpus' (docs), 'queries' (test queries), 'qrels' (relevance)
-corpus_ds = load_dataset(args.dataset, split="corpus", trust_remote_code=False)
-queries_ds = load_dataset(args.dataset, split="queries", trust_remote_code=False)
-qrels_ds = load_dataset(args.dataset, split="qrels", trust_remote_code=False)
+# BeIR/nfcorpus uses configs (not splits): 'corpus' for docs, 'queries' for queries
+# Qrels are in a separate dataset: BeIR/nfcorpus-qrels
+corpus_ds = load_dataset(args.dataset, "corpus", split="corpus", trust_remote_code=False)
+queries_ds = load_dataset(args.dataset, "queries", split="queries", trust_remote_code=False)
+qrels_ds = load_dataset(f"{args.dataset}-qrels", split="test", trust_remote_code=False)
 
 # Build doc lookup: _id → text
 # nfcorpus fields: _id, title, text
@@ -81,6 +82,7 @@ for row in corpus_ds:
     doc_texts.append(f"{title} {body}".strip())
 
 # Build query lookup: _id → text
+# nfcorpus queries have title='' and text field (only text is meaningful)
 query_ids = []
 query_texts = []
 for row in queries_ds:
@@ -88,7 +90,7 @@ for row in queries_ds:
     query_texts.append(row["text"])
 
 # Build qrels: query_id → {doc_id: relevance_score}
-# nfcorpus uses 0-2 graded relevance
+# nfcorpus-qrels uses 0-2 graded relevance
 qrels = defaultdict(dict)
 for row in qrels_ds:
     qrels[row["query-id"]][row["corpus-id"]] = int(row["score"])
@@ -203,34 +205,32 @@ def bm25_search(query_text, k=100):
 
 
 # ── FAISS Index ──────────────────────────────────────────────────────────────
-log(f"Building FAISS HNSW index: M={args.hnsw_M}, ef_construction={args.hnsw_ef_construction} ...")
+log(f"Building FAISS index (IndexFlatIP for cosine similarity) ...")
 t0 = time.time()
 
-# L2-normalize for cosine similarity (L2 distance on normalized vectors)
-doc_emb_norm = doc_embeddings.copy().astype(np.float32)
+# L2-normalize for cosine similarity via inner product
+doc_emb_norm = np.ascontiguousarray(doc_embeddings.astype(np.float32))
 faiss.normalize_L2(doc_emb_norm)
 
 dim = args.fasttext_dim
-index = faiss.IndexHNSWFlat(dim, args.hnsw_M)
-index.hnsw.efConstruction = args.hnsw_ef_construction
+index = faiss.IndexFlatIP(dim)  # inner product on L2-normalized vectors = cosine similarity
 index.add(doc_emb_norm)
-index.hnsw.efSearch = args.hnsw_ef_search
 
 faiss_build_time = time.time() - t0
 log(f"FAISS index built in {faiss_build_time:.1f}s, size={index.ntotal} vectors")
 
 
 def faiss_search(query_text, k=100):
-    """Cosine similarity via FAISS on L2-normalized vectors."""
+    """Cosine similarity via FAISS inner product on L2-normalized vectors."""
     words = tokenize(query_text)
     word_vecs = [ft_model.get_word_vector(w) for w in words if w in ft_model]
     if not word_vecs:
         return []
-    q = np.mean(word_vecs, axis=0).astype(np.float32).reshape(1, -1)
+    q = np.ascontiguousarray(np.mean(word_vecs, axis=0).astype(np.float32).reshape(1, -1))
     faiss.normalize_L2(q)
     distances, indices = index.search(q, min(k, index.ntotal))
-    # L2 distance on normalized vectors -> cosine = 1 - d^2/2
-    return [(doc_ids[int(indices[0][i])], max(0.0, 1.0 - float(distances[0][i])**2 / 2.0))
+    # distances are inner product (cosine similarity) since vectors are L2-normalized
+    return [(doc_ids[int(indices[0][i])], max(0.0, float(distances[0][i])))
             for i in range(len(indices[0])) if indices[0][i] >= 0]
 
 
