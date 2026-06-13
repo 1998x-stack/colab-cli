@@ -267,6 +267,7 @@ VRAM fit (T4 15.6 GB): SmolLM2-1.7B ~12.8 GB. Qwen2.5-3B likely fits. 7B needs A
 
 ## Pre-deploy checklist
 
+- **Ruff lint (MANDATORY)**: `ruff check .` must pass with zero errors before deploying to Colab. Colab sessions are precious (~10 min GPU window) — lint failures discovered mid-session waste a provisioning slot. Run locally first: `ruff check . && ruff check --fix .` to auto-fix what can be auto-fixed. Config: `ruff.toml` (target py310, ignores E402/E501/E701/E702/E741 for project-appropriate patterns).
 - **Time-budget check (MANDATORY)**: Estimate total runtime. Formula: `total_steps ÷ estimated_steps_per_sec ÷ 60 = minutes`. Must fit within 10 min for Colab GPU. If >10 min: reduce steps, use smaller model, split across sessions, or use Kaggle.
   - T4 MuJoCo (MLP, 1 env): ~3000 steps/sec
   - T4 Atari RAM (MLP, 4 envs): ~350 steps/sec

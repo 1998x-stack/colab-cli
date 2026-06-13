@@ -353,6 +353,7 @@ footer .copy a { color: var(--green); text-decoration: none; }
     <a href="#" class="logo">colab<span>-cli</span></a>
     <ul class="links">
       <li><a href="#projects">Projects</a></li>
+      <li><a href="#quality">Quality</a></li>
       <li><a href="#benchmark">Benchmark</a></li>
       <li><a href="#quickstart">Quickstart</a></li>
       <li><a href="https://github.com/1998x-stack/colab-cli">GitHub</a></li>
@@ -384,7 +385,7 @@ footer .copy a { color: var(--green); text-decoration: none; }
 <div class="stats-bar">
   <div class="container">
     <div class="stat-item reveal">
-      <div class="stat-value">12+</div>
+      <div class="stat-value">29</div>
       <div class="stat-label">ML Projects</div>
     </div>
     <div class="stat-item reveal">
@@ -396,8 +397,8 @@ footer .copy a { color: var(--green); text-decoration: none; }
       <div class="stat-label">Free Tier</div>
     </div>
     <div class="stat-item reveal">
-      <div class="stat-value">200 eps</div>
-      <div class="stat-label">Per Run</div>
+      <div class="stat-value">ruff clean</div>
+      <div class="stat-label">Lint Gate</div>
     </div>
     <div class="stat-item reveal">
       <div class="stat-value">2 min</div>
@@ -450,6 +451,88 @@ footer .copy a { color: var(--green); text-decoration: none; }
         <p class="card-desc">LLM inference benchmarks on Colab T4. SmolLM2-1.7B, Qwen2.5-3B with vLLM 0.10.2.</p>
         <div class="card-tags"><span class="tag nlp">LLM</span><span class="tag gpu">T4 GPU</span><span class="tag">vLLM</span></div>
       </a>
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/rl-sarsa-gym" class="project-card reveal">
+        <div class="card-icon">📊</div>
+        <h3>Tabular SARSA — CartPole</h3>
+        <p class="card-desc">On-policy tabular SARSA with state discretization. 20,736 states, CPU-only, 59s training.</p>
+        <div class="card-tags"><span class="tag rl">RL</span><span class="tag">CPU</span><span class="tag">NumPy</span></div>
+      </a>
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/ddqn-noisy-ram" class="project-card reveal">
+        <div class="card-icon">🎲</div>
+        <h3>DDQN vs NoisyNet</h3>
+        <p class="card-desc">Double DQN + factorized Gaussian noise. PER for sparse rewards, 3 env comparison.</p>
+        <div class="card-tags"><span class="tag rl">RL</span><span class="tag gpu">T4 GPU</span><span class="tag">PyTorch</span></div>
+      </a>
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/cuda-tutorial" class="project-card reveal">
+        <div class="card-icon">🔧</div>
+        <h3>CUDA Tutorial — 7 Kernels</h3>
+        <p class="card-desc">Progressive GPU programming: add, dot, matmul, reduction, conv, flash attention.</p>
+        <div class="card-tags"><span class="tag">CUDA</span><span class="tag gpu">GPU</span><span class="tag">numba</span></div>
+      </a>
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/rnn-imdb" class="project-card reveal">
+        <div class="card-icon">📝</div>
+        <h3>BiLSTM — IMDB Sentiment</h3>
+        <p class="card-desc">Bidirectional LSTM with 2-layer FC head. 77.6% accuracy, 78.2% F1 on IMDB.</p>
+        <div class="card-tags"><span class="tag nlp">NLP</span><span class="tag gpu">T4 GPU</span><span class="tag">PyTorch</span></div>
+      </a>
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/cnn-explainer" class="project-card reveal">
+        <div class="card-icon">🔍</div>
+        <h3>CNN Explainer</h3>
+        <p class="card-desc">Grad-CAM, saliency maps, integrated gradients. CIFAR-10 CNN with full XAI suite.</p>
+        <div class="card-tags"><span class="tag cv">CV</span><span class="tag gpu">T4 GPU</span><span class="tag">XAI</span></div>
+      </a>
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/cnn-quantization" class="project-card reveal">
+        <div class="card-icon">📏</div>
+        <h3>CNN Quantization</h3>
+        <p class="card-desc">ResNet-18 FP32 vs FP16 vs INT8 vs INT4 comparison on CIFAR-10.</p>
+        <div class="card-tags"><span class="tag cv">CV</span><span class="tag gpu">T4 GPU</span><span class="tag">INT4</span></div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ═══ Code Quality ═════════════════════════════════════════ -->
+<section id="quality">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="section-label">/quality</div>
+      <h2>Code Quality Gate</h2>
+    </div>
+
+    <div class="cli-block reveal" style="margin-bottom:1.5rem;">
+      <div class="cli-header">
+        <span class="cli-dot r"></span><span class="cli-dot y"></span><span class="cli-dot g"></span>
+        <span class="cli-title">terminal — ruff check .</span>
+      </div>
+      <div class="cli-body">
+        <pre><span class="c"># Zero errors, zero warnings across all 29 projects</span>
+<span class="k">$ ruff check .</span>
+<span class="s">All checks passed!</span>
+
+<span class="c"># Pre-deploy gate: lint must pass before Colab deploy</span>
+<span class="c"># Config: ruff.toml — E402/E501/E701/E702/E741 ignored for ML patterns</span></pre>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; margin-top: 1.5rem;">
+      <div class="bench-card reveal">
+        <h3 style="color:var(--green);">172 auto-fixed</h3>
+        <p style="font-size:0.85rem; color:var(--text-dim);">E401 (multi-imports), F401 (unused imports), F541 (f-strings)</p>
+      </div>
+      <div class="bench-card reveal">
+        <h3 style="color:var(--green);">11 manual fixes</h3>
+        <p style="font-size:0.85rem; color:var(--text-dim);">E731 (lambda→def), E722 (bare except), E712, F841, F821</p>
+      </div>
+      <div class="bench-card reveal">
+        <h3 style="color:var(--amber);">5 rules ignored</h3>
+        <p style="font-size:0.85rem; color:var(--text-dim);">E402 (Colab imports), E501 (line length), E701/E702 (ML patterns), E741 (loop vars)</p>
+      </div>
+      <div class="bench-card reveal">
+        <h3 style="color:var(--green);">90 files</h3>
+        <p style="font-size:0.85rem; color:var(--text-dim);">Spanning 29 projects, 86 Python files + 4 config files</p>
+      </div>
     </div>
   </div>
 </section>
