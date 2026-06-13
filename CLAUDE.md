@@ -4,12 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Skills-first workflow
 
-This project has two task-specific skills that handle Colab and Kaggle operations:
+This project has three task-specific skills:
 
 | Skill | Trigger | Covers |
 |-------|---------|--------|
 | **colab-cli** | Colab, GPU VM, `colab` commands, remote training | Provision, exec, monitor, multi-account, all gotchas |
 | **kaggle-cli** | Kaggle, `kaggle` CLI, kernel push, GPU notebooks | Push, monitor, download, multi-account, GPU compatibility |
+| **papermill-colab** | Papermill, notebook execution on Colab, .ipynb on GPU, parameter sweeps | Run parameterized notebooks, hyperparameter search, nbconvert alternative |
 
 **When a task involves Colab or Kaggle, invoke the relevant skill via the Skill tool before acting.** The skill files are at `.claude/skills/<name>/SKILL.md` with supporting scripts and references.
 

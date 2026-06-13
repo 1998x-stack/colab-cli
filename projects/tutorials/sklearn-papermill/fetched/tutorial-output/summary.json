@@ -1,0 +1,16 @@
+{
+  "model": "SGDClassifier",
+  "dataset": "sklearn-digits",
+  "n_epochs": 15,
+  "alpha": 0.0001,
+  "test_size": 0.2,
+  "sgd_train_acc": 0.988866,
+  "sgd_test_acc": 0.95,
+  "sgd_train_loss": 0.116629,
+  "sgd_test_loss": 1.264029,
+  "rf_train_acc": 1.0,
+  "rf_test_acc": 0.963889,
+  "total_time_s": 14.1,
+  "n_train": 1437,
+  "n_test": 360
+}

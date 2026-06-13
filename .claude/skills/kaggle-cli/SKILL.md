@@ -335,6 +335,91 @@ Both platforms can share the same `train.py` — just include environment detect
 - **Kaggle may require phone verification** for first-time GPU use. From China, this can be difficult (reCAPTCHA). Complete verification before relying on Kaggle for training.
 - **GPU quota is per-account, per-week.** Running the same script across 4 accounts gives 120h/week total, but check ToS compliance.
 
+## Training outputs — logs, plots, metrics
+
+Every training script should produce three structured artifacts for glance-and-decide monitoring. Use `scripts/log_utils.py` and `scripts/plot_utils.py` for reusable implementations (shared with colab-cli).
+
+### Output directory structure
+
+```
+<out_dir>/
+├── logs/train.log          # Timestamped training log
+├── metrics.csv             # Per-epoch structured metrics
+├── pngs/training_curves.png  # Multi-panel visualization
+├── checkpoints/            # Model checkpoints (persist to Kaggle Datasets)
+└── summary.json            # Final run metadata
+```
+
+Kaggle output goes to `/kaggle/working/<project>-output/`:
+```python
+from log_utils import detect_output_dir, setup_output_dirs
+
+out_dir = detect_output_dir("my-project")  # → /kaggle/working/my-project-output/
+setup_output_dirs(out_dir)
+```
+
+### log_utils.py — reusable logging
+
+```python
+from log_utils import Logger, MetricsCSV, SummaryJSON
+
+# Timestamped log to file + stdout
+logger = Logger(f"{out_dir}/logs/train.log")
+logger.log("Training started")
+
+# Structured CSV — header written on creation, rows appended
+csv = MetricsCSV(f"{out_dir}/metrics.csv",
+                 ["epoch", "train_loss", "train_acc", "test_loss", "test_acc",
+                  "elapsed_s", "lr"])
+csv.write_row(epoch=1, train_loss=1.23, train_acc=0.45,
+              test_loss=1.34, test_acc=0.50, elapsed_s=180, lr=0.089)
+
+# Final summary
+summary = SummaryJSON(f"{out_dir}/summary.json")
+summary.write({"test_acc": 0.87, "epochs_completed": 5, "total_time_s": 900})
+```
+
+### plot_utils.py — reusable visualization
+
+```python
+from plot_utils import plot_loss_acc, plot_rl_progress, plot_loss
+
+# Classification (4-panel: loss, accuracy, LR, distribution)
+plot_loss_acc(metrics, f"{out_dir}/pngs/training_curves.png",
+              title="My Model — Dataset", size_label="small")
+
+# RL training (4-panel: reward, episode length, exploration, Q-values)
+plot_rl_progress(metrics, f"{out_dir}/pngs/rl_progress.png",
+                 title="TD3 — HalfCheetah", solved_threshold=10000)
+
+# Minimal single-panel loss plot
+plot_loss(metrics, f"{out_dir}/pngs/loss.png", title="Loss")
+```
+
+### Log format convention
+
+Per-N-batches, one self-contained line:
+```
+[HH:MM:SS] Ep 1/5 | Batch 1000 | loss=1.3625 | avg100=1.3677 | lr=0.089451 | elapsed=97s
+```
+
+Note: Kaggle log output can buffer — all lines may appear atomically at completion (see gotchas.md #17). Do not assume empty logs = stuck.
+
+### Metrics CSV convention
+
+```
+epoch,train_loss,train_acc,test_loss,test_acc,elapsed_s,lr
+1,1.234000,0.456000,1.345000,0.500000,180.0,0.089000
+```
+
+One row per epoch. Crash-safe: write header on creation, append after each epoch.
+
+### PNG conventions
+
+- 4-panel figure (2×2 grid), overwritten periodically
+- Panel 1: Loss curve, Panel 2: Accuracy, Panel 3: LR schedule, Panel 4: Loss distribution
+- Always include reference lines (baselines, best-so-far)
+
 ## File paths
 
 | Path | Read/Write | Persistent | Purpose |

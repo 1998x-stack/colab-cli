@@ -20,7 +20,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
-from config import TransformerConfig, parse_args
+from config import parse_args
 from model import GPT
 
 # --- Shakespeare download ---

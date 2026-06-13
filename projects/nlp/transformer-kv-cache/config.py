@@ -4,7 +4,7 @@ Everything lives in one dataclass so components can be imported independently
 and receive a config object. CLI overrides any field via argparse.
 """
 import argparse
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -64,14 +64,14 @@ def parse_args() -> TransformerConfig:
         field_type = field_def.type
         default = getattr(config, field_name)
 
-        if field_type == bool:
+        if field_type is bool:
             parser.add_argument(f"--{field_name}", action="store_true", default=default)
             parser.add_argument(f"--no-{field_name}", action="store_false", dest=field_name)
-        elif field_type == int:
+        elif field_type is int:
             parser.add_argument(f"--{field_name}", type=int, default=default)
-        elif field_type == float:
+        elif field_type is float:
             parser.add_argument(f"--{field_name}", type=float, default=default)
-        elif field_type == str:
+        elif field_type is str:
             parser.add_argument(f"--{field_name}", type=str, default=default)
 
     args = parser.parse_args()

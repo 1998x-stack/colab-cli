@@ -9,15 +9,12 @@ Usage:
 """
 import argparse
 import os
-import time
 import urllib.request
 
 import torch
-import torch.nn.functional as F
 
 from config import TransformerConfig
 from model import GPT
-from kv_cache import KVCache
 
 
 SHAKESPEARE_URL = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"

@@ -280,6 +280,100 @@ Request accelerators with `--gpu` or `--tpu`. Availability depends on your Colab
 
 Always have a CPU fallback plan. If the accelerator is rejected, the CLI prints a clear error — try a different one or omit the flag for CPU.
 
+## Training outputs — logs, plots, metrics
+
+Every training script should produce three structured artifacts for glance-and-decide monitoring. Use `scripts/log_utils.py` and `scripts/plot_utils.py` for reusable implementations.
+
+### Output directory structure
+
+```
+<out_dir>/
+├── logs/train.log          # Timestamped training log
+├── metrics.csv             # Per-epoch structured metrics
+├── pngs/training_curves.png  # Multi-panel visualization
+├── checkpoints/            # Model checkpoints (excluded from cron fetch)
+└── summary.json            # Final run metadata
+```
+
+### log_utils.py — reusable logging
+
+```python
+from log_utils import Logger, MetricsCSV, SummaryJSON, detect_output_dir, setup_output_dirs
+
+# Auto-detect environment
+out_dir = detect_output_dir("my-project")
+setup_output_dirs(out_dir)
+
+# Timestamped log to file + stdout
+logger = Logger(f"{out_dir}/logs/train.log")
+logger.log("Training started")
+logger.log(f"Ep 1/5 | Batch 100 | loss=1.23 | avg100=1.35")
+
+# Structured CSV — header written on creation, rows appended
+csv = MetricsCSV(f"{out_dir}/metrics.csv",
+                 ["epoch", "train_loss", "train_acc", "test_loss", "test_acc",
+                  "elapsed_s", "lr"])
+csv.write_row(epoch=1, train_loss=1.23, train_acc=0.45,
+              test_loss=1.34, test_acc=0.50, elapsed_s=180, lr=0.089)
+
+# Final summary
+summary = SummaryJSON(f"{out_dir}/summary.json")
+summary.write({"test_acc": 0.87, "epochs_completed": 5, "total_time_s": 900})
+```
+
+### plot_utils.py — reusable visualization
+
+```python
+from plot_utils import plot_loss_acc, plot_rl_progress, plot_loss
+
+# Classification/regression (4-panel: loss, accuracy, LR, distribution)
+plot_loss_acc(metrics, f"{out_dir}/pngs/training_curves.png",
+              title="My Model — Dataset", size_label="small")
+
+# RL training (4-panel: reward, episode length, exploration, Q-values)
+plot_rl_progress(metrics, f"{out_dir}/pngs/rl_progress.png",
+                 title="TD3 — HalfCheetah", solved_threshold=10000)
+
+# Minimal single-panel loss plot
+plot_loss(metrics, f"{out_dir}/pngs/loss.png", title="Loss")
+```
+
+### Log format convention
+
+Per-N-batches, one self-contained line:
+```
+[HH:MM:SS] Ep 1/5 | Batch 1000 | loss=1.3625 | avg100=1.3677 | lr=0.089451 | elapsed=97s
+```
+
+Evaluation lines:
+```
+[HH:MM:SS]   -- Eval @ batch 1000: test_loss=1.3660 | test_acc=0.4904
+```
+
+Epoch-end lines:
+```
+[HH:MM:SS] -- Epoch 1/5 done -- train_loss=1.23 | train_acc=0.45 | test_loss=1.34 | test_acc=0.50 | time=180s
+```
+
+### Metrics CSV convention
+
+```
+epoch,train_loss,train_acc,test_loss,test_acc,elapsed_s,lr
+1,1.234000,0.456000,1.345000,0.500000,180.0,0.089000
+2,0.890000,0.650000,1.010000,0.620000,360.0,0.045000
+```
+
+One row per epoch. Write header on creation, append rows immediately after each epoch (crash-safe).
+
+### PNG conventions
+
+- 4-panel figure (2×2 grid), overwritten periodically (every N batches)
+- Panel 1: Loss curve (raw + moving average)
+- Panel 2: Accuracy / evaluation metric
+- Panel 3: Learning rate schedule
+- Panel 4: Loss distribution histogram (recent batches)
+- Always include reference lines (baselines, best-so-far)
+
 ## File paths
 
 The Colab VM's working directory is `/content/`. Uploaded files with relative paths land there. Use `colab ls` to verify what's on the VM.

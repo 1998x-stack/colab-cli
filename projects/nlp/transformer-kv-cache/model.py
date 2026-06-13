@@ -4,7 +4,6 @@ The model can be built in two modes:
 - Training: uses CausalMultiHeadAttention (no cache overhead)
 - Inference: uses CausalMHAWithCache (accepts per-layer KVCache)
 """
-import math
 import time
 
 import torch

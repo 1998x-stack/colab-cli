@@ -10,7 +10,6 @@ import os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
 
 
 def main():
@@ -68,7 +67,7 @@ def _plot_training_curves(csv_path, png_dir):
     fig.tight_layout()
     fig.savefig(os.path.join(png_dir, "training_curves.png"), dpi=150)
     plt.close(fig)
-    print(f"Saved training_curves.png")
+    print("Saved training_curves.png")
 
 
 if __name__ == "__main__":
