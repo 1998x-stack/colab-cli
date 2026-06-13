@@ -5,17 +5,23 @@ Usage:
     python train.py --data s1k_filtered.jsonl --output_dir /content/s1-t4/checkpoints --resume /path/to/adapter
 """
 import argparse
+import csv
 import json
 import os
 import sys
 import time
 import logging
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
+    DataCollatorWithPadding,
     TrainingArguments,
     Trainer,
     TrainerCallback,
@@ -30,12 +36,14 @@ from torch.utils.data import Dataset
 
 
 # --- Constants ---
-MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
+MODEL_NAME = "Qwen/Qwen2.5-0.5B-Instruct"
 ASSISTANT_MARKER = "<|im_start|>assistant"
 LOG_DIR = "/content/s1-t4/logs"
 RESULTS_DIR = "/content/s1-t4/results"
+PNGS_DIR = "/content/s1-t4/pngs"
 HEARTBEAT_PATH = "/content/s1-t4/heartbeat.json"
 TRAIN_LOSS_PATH = os.path.join(RESULTS_DIR, "train_loss.jsonl")
+METRICS_CSV_PATH = os.path.join(RESULTS_DIR, "metrics.csv")
 
 
 # --- Logging setup ---
@@ -66,6 +74,52 @@ def setup_logging(log_dir: str) -> logging.Logger:
     logger.addHandler(sh)
 
     return logger
+
+
+def write_metrics_csv_header():
+    """Write metrics.csv header. No-op if file already exists."""
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    if not os.path.exists(METRICS_CSV_PATH):
+        with open(METRICS_CSV_PATH, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["step", "loss", "learning_rate", "epoch", "elapsed_s"])
+
+
+def _plot_training_curve(metrics_path: str, png_path: str):
+    """Generate a live training loss curve PNG from metrics.csv."""
+    if not os.path.exists(metrics_path):
+        return
+    steps, losses = [], []
+    with open(metrics_path) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                steps.append(int(row["step"]))
+                losses.append(float(row["loss"]))
+            except (ValueError, KeyError):
+                continue
+    if len(steps) < 2:
+        return
+
+    steps_a = np.array(steps)
+    losses_a = np.array(losses)
+    window = max(5, len(losses) // 10)
+    kernel = np.ones(window) / window
+    smoothed = np.convolve(losses_a, kernel, mode="valid")
+    smooth_steps = steps_a[window - 1:]
+
+    fig, ax = plt.subplots(figsize=(10, 6), facecolor="white")
+    ax.plot(steps_a, losses_a, alpha=0.7, linewidth=0.5, color="steelblue", label="Raw Loss")
+    ax.plot(smooth_steps, smoothed, linewidth=2, color="darkorange", label=f"Smoothed (w={window})")
+    ax.set_title(f"Training Loss (step {steps[-1]})")
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Loss")
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(png_path), exist_ok=True)
+    fig.savefig(png_path, dpi=150)
+    plt.close(fig)
 
 
 def write_heartbeat(status: str, step: int, loss: float | None):
@@ -173,10 +227,17 @@ class S1KDataset(Dataset):
 # --- Logging Callback ---
 
 class TrainLogCallback(TrainerCallback):
-    """Custom callback that writes structured logs, heartbeat, and loss tracking."""
+    """Custom callback that writes structured logs, heartbeat, loss CSV, and live PNGs."""
 
     def __init__(self, logger: logging.Logger):
         self.logger = logger
+        self._start_time = None
+
+    def on_train_begin(self, args, state, control, **kwargs):
+        self._start_time = time.time()
+        write_heartbeat("started", 0, None)
+        write_metrics_csv_header()
+        self.logger.info("Training started")
 
     def on_log(self, args, state, control, logs=None, **kwargs):
         if logs is None:
@@ -184,6 +245,9 @@ class TrainLogCallback(TrainerCallback):
 
         step = state.global_step
         loss = logs.get("loss")
+        lr = logs.get("learning_rate")
+        epoch = logs.get("epoch")
+        elapsed = time.time() - self._start_time if self._start_time else 0.0
 
         # Write heartbeat
         write_heartbeat("training", step, loss)
@@ -192,18 +256,45 @@ class TrainLogCallback(TrainerCallback):
         if loss is not None:
             write_train_loss(step, loss)
 
-        # Structured log
-        self.logger.info(
-            f"step={step} "
-            + " ".join(f"{k}={v:.6g}" if isinstance(v, float) else f"{k}={v}"
-                       for k, v in logs.items())
-        )
+        # Write metrics CSV
+        if loss is not None:
+            try:
+                with open(METRICS_CSV_PATH, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([
+                        step,
+                        f"{loss:.6g}",
+                        f"{lr:.6g}" if lr is not None else "",
+                        f"{epoch:.6g}" if epoch is not None else "",
+                        f"{elapsed:.1f}",
+                    ])
+            except Exception:
+                pass  # CSV append is best-effort — don't crash training
 
-    def on_train_begin(self, args, state, control, **kwargs):
-        write_heartbeat("started", 0, None)
-        self.logger.info("Training started")
+        # Generate live training curve PNG every 10 steps
+        if step > 0 and step % 10 == 0:
+            try:
+                _plot_training_curve(METRICS_CSV_PATH, os.path.join(PNGS_DIR, "training_curves.png"))
+            except Exception:
+                pass
+
+        # Structured log
+        parts = [f"step={step}"]
+        if loss is not None:
+            parts.append(f"loss={loss:.6g}")
+        if lr is not None:
+            parts.append(f"lr={lr:.6g}")
+        if epoch is not None:
+            parts.append(f"epoch={epoch:.4f}")
+        parts.append(f"elapsed={elapsed:.0f}s")
+        self.logger.info(" | ".join(parts))
 
     def on_train_end(self, args, state, control, **kwargs):
+        # Final PNG
+        try:
+            _plot_training_curve(METRICS_CSV_PATH, os.path.join(PNGS_DIR, "training_curves.png"))
+        except Exception:
+            pass
         write_heartbeat("completed", state.global_step, None)
         self.logger.info(f"Training completed at step {state.global_step}")
 
@@ -227,6 +318,7 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(PNGS_DIR, exist_ok=True)
 
     # Setup logging
     logger = setup_logging(LOG_DIR)
@@ -298,8 +390,8 @@ def main():
     training_args = TrainingArguments(
         output_dir=args.output_dir,
         num_train_epochs=3,
-        per_device_train_batch_size=2,
-        gradient_accumulation_steps=8,
+        per_device_train_batch_size=1,
+        gradient_accumulation_steps=16,
         learning_rate=2e-4,
         lr_scheduler_type="cosine",
         warmup_ratio=0.05,
@@ -324,11 +416,16 @@ def main():
     logger.info(f"Effective batch size: {effective_bs}")
 
     # --- Trainer ---
+    data_collator = DataCollatorWithPadding(
+        tokenizer=tokenizer,
+        padding=True,
+        return_tensors="pt",
+    )
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=dataset,
-        tokenizer=tokenizer,
+        data_collator=data_collator,
         callbacks=[TrainLogCallback(logger)],
     )
 

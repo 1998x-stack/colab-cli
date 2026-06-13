@@ -29,13 +29,23 @@ The sections below provide project-specific context and constraints that the ski
     └── scripts/             # push_and_wait.py, check_progress.py, kernel-metadata.json
 
 projects/
-├── alexnet_imagenette/   # AlexNet faithful reproduction (Imagenette, 10-class)
-├── transformer_iwslt/    # Transformer (Attention Is All You Need) on IWSLT'14 De->En
-├── vllm-compare/         # vLLM model benchmarks on Colab T4
-├── vit-cifar10/          # ViT on CIFAR-10 (Kaggle, 3-config experiment)
-├── cnn-quantization/     # CNN quantization comparison: FP32 vs FP16 vs INT8 vs INT4
-├── rl-sac/ cnn-cifar10/ rl-dqn-atari/ nanogpt/ nanochat-colab/ rnn-imdb/ cuda-tutorial/
-└── vllm-rag/ ml-tutorial/ autoresearch-t4/
+├── rl/                  # Reinforcement Learning (9 projects)
+│   ├── td3-gym/ ddpg-gym/ ddpg-td3-mujoco/ ddqn-noisy-ram/
+│   ├── ppo-atari-ram/ ppo-mujoco/ rl-dqn-atari/ rl-sac/ rl-sarsa-gym/
+│   └── REPORT_ddpg_vs_td3.md
+├── cv/                  # Computer Vision (5 projects)
+│   ├── alexnet_imagenette/ cnn-cifar10/ cnn-explainer/
+│   └── cnn-quantization/ vit-cifar10/
+├── nlp/                 # NLP & LLMs (11 projects)
+│   ├── transformer_iwslt/ nanogpt/ nanochat-colab/ s1-t4/ seq2seq-t4/
+│   ├── rnn-imdb/ word2vec-c4/ rag-fasttext/ hotpotqa-reasoning/
+│   └── vllm-compare/ vllm-rag/
+├── gnn/                 # Graph Neural Networks (1 project)
+│   └── gnn-citation/
+├── systems/             # Systems & Infrastructure (3 projects)
+│   └── autoresearch-t4/ cuda-tutorial/ swe-agent-colab/
+└── tutorials/           # Education (1 project)
+    └── ml-tutorial/
 ```
 
 ## Project conventions

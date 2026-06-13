@@ -103,7 +103,7 @@ def filter_quality(items):
     return kept
 
 
-def filter_difficulty(items, model_name="Qwen/Qwen2.5-7B-Instruct", device=None):
+def filter_difficulty(items, model_name="Qwen/Qwen2.5-0.5B-Instruct", device=None):
     """Remove samples the base model already gets right. Keeps only hard questions.
 
     Uses batch generation with temperature=0 for deterministic eval.
@@ -263,7 +263,7 @@ def main():
         # Use trace length as rough difficulty proxy (no GPU needed)
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(
-            "Qwen/Qwen2.5-7B-Instruct", trust_remote_code=True
+            "Qwen/Qwen2.5-0.5B-Instruct", trust_remote_code=True
         )
         for item in items:
             item["trace_len"] = len(tokenizer.encode(

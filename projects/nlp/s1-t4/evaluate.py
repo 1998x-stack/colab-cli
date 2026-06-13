@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 
 # --- Constants ---
-MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
+MODEL_NAME = "Qwen/Qwen2.5-0.5B-Instruct"
 LOG_DIR = "/content/s1-t4/logs"
 
 # BF Configs: (name, max_thinking_tokens, num_suppressions, max_new_tokens)

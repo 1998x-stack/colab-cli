@@ -1,6 +1,8 @@
 """Colab progress checker for s1-t4 QLoRA training.
 
-Reads /content/s1-t4/heartbeat.json on VM, reports status, tails logs.
+Reads /content/s1-t4/heartbeat.json on VM, reports status, tails logs,
+reports latest metrics CSV row, and lists PNGs.
+
 Intended to be run every 5-7 min via CronCreate with colab exec.
 
 Usage (dry-run):
@@ -9,6 +11,7 @@ Usage (dry-run):
     check_progress.main()
 """
 
+import csv
 import json
 import os
 import sys
@@ -24,6 +27,7 @@ def main() -> int:
     log_dir = os.path.join(VM_DIR, "logs")
     checkpoint_dir = os.path.join(VM_DIR, "checkpoints")
     results_dir = os.path.join(VM_DIR, "results")
+    pngs_dir = os.path.join(VM_DIR, "pngs")
 
     # 1. Read heartbeat
     hb = None
@@ -69,22 +73,47 @@ def main() -> int:
             print(f"[check] Eval log tail ({len(lines)} lines total):")
             print(tail)
     except FileNotFoundError:
-        pass  # eval.log is optional — no message
+        pass
 
-    # 4. List checkpoints
+    # 4. Tail metrics.csv (last 3 rows)
+    metrics_csv = os.path.join(results_dir, "metrics.csv")
+    try:
+        with open(metrics_csv) as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+        if len(rows) > 1:
+            print(f"[check] metrics.csv ({len(rows)-1} rows):")
+            print(f"    {' | '.join(rows[0])}")  # header
+            for row in rows[-3:]:
+                print(f"    {' | '.join(row)}")
+    except FileNotFoundError:
+        print("[check] (metrics.csv not found)")
+
+    # 5. List PNGs
+    pngs = sorted(glob.glob(os.path.join(pngs_dir, "*.png")))
+    if pngs:
+        print(f"[check] PNGs ({len(pngs)}):")
+        for p in pngs:
+            size = os.path.getsize(p)
+            mtime = time.time() - os.path.getmtime(p)
+            print(f"    {os.path.basename(p)} ({size:,} bytes, {mtime:.0f}s ago)")
+    else:
+        print("[check] PNGs: none yet")
+
+    # 6. List checkpoints
     ckpt_pattern = os.path.join(checkpoint_dir, "*")
     ckpts = sorted(glob.glob(ckpt_pattern))
     if ckpts:
-        # Filter to directories (HF PEFT adapter checkpoints are dirs)
         ckpt_dirs = [c for c in ckpts if os.path.isdir(c)]
-        print(f"[check] Checkpoints: {len(ckpt_dirs)} dirs, latest: {os.path.basename(ckpt_dirs[-1])}")
+        if ckpt_dirs:
+            print(f"[check] Checkpoints: {len(ckpt_dirs)} dirs, latest: {os.path.basename(ckpt_dirs[-1])}")
         other = [c for c in ckpts if not os.path.isdir(c)]
         if other:
             print(f"[check]   + {len(other)} files: {[os.path.basename(c) for c in other]}")
     else:
         print("[check] Checkpoints: none yet")
 
-    # 5. List results
+    # 7. List results
     results = sorted(glob.glob(os.path.join(results_dir, "*")))
     if results:
         print(f"[check] Results ({len(results)} files):")
@@ -95,8 +124,6 @@ def main() -> int:
                 print(f"    {label} ({size:,} bytes)")
             else:
                 print(f"    {label}")
-    else:
-        print("[check] Results: none yet")
 
     return 0
 

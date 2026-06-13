@@ -7,7 +7,7 @@
   <a href="#-projects"><strong>Projects</strong></a> &nbsp;·&nbsp;
   <a href="#-benchmark"><strong>Benchmark</strong></a> &nbsp;·&nbsp;
   <a href="#-quickstart"><strong>Quickstart</strong></a> &nbsp;·&nbsp;
-  <a href="./projects/REPORT_ddpg_vs_td3.md"><strong>DDPG vs TD3 Report</strong></a>
+  <a href="./projects/rl/REPORT_ddpg_vs_td3.md"><strong>DDPG vs TD3 Report</strong></a>
 </p>
 
 ---
@@ -50,42 +50,65 @@ colab stop -s training
 
 A growing collection of ML experiments trained on free-tier Colab/Kaggle GPUs.
 
-### Reinforcement Learning
+### Reinforcement Learning (`projects/rl/`)
 
 | Project | Algorithm | Environment | GPU | Peak Result |
 |---------|-----------|-------------|-----|-------------|
-| [`td3-gym`](./projects/td3-gym/) | **TD3** | Pendulum-v1 | T4 | **-71.76** (final = best) |
-| [`ddpg-gym`](./projects/ddpg-gym/) | **DDPG** | Pendulum-v1 | T4 | -40.95 (lost after ep 40) |
-| [`rl-sac`](./projects/rl-sac/) | SAC | MountainCarContinuous-v0 | T4 | — |
-| [`rl-dqn-atari`](./projects/rl-dqn-atari/) | DQN | Atari | T4 | — |
+| [`td3-gym`](./projects/rl/td3-gym/) | **TD3** | Pendulum-v1 | T4 | **-71.76** (final = best) |
+| [`ddpg-gym`](./projects/rl/ddpg-gym/) | **DDPG** | Pendulum-v1 | T4 | -40.95 (lost after ep 40) |
+| [`ddpg-td3-mujoco`](./projects/rl/ddpg-td3-mujoco/) | DDPG + TD3 | MuJoCo (3 envs) | T4 | Head-to-head comparison |
+| [`ddqn-noisy-ram`](./projects/rl/ddqn-noisy-ram/) | Double DQN + NoisyNet | Atari RAM | T4 | Prioritized ER |
+| [`ppo-atari-ram`](./projects/rl/ppo-atari-ram/) | PPO + GAE | Atari RAM (63 envs) | T4 | Two-tier config system |
+| [`ppo-mujoco`](./projects/rl/ppo-mujoco/) | PPO + GAE | MuJoCo | T4 | Gaussian policy |
+| [`rl-dqn-atari`](./projects/rl/rl-dqn-atari/) | DQN + Dueling | ALE/Pong-v5 | T4 | CNN encoder |
+| [`rl-sac`](./projects/rl/rl-sac/) | SAC + auto entropy | MountainCarContinuous-v0 | T4 | — |
+| [`rl-sarsa-gym`](./projects/rl/rl-sarsa-gym/) | Tabular SARSA | CartPole-v1 | T4 | 12-bin discretization |
 
-### Computer Vision
+### Computer Vision (`projects/cv/`)
 
 | Project | Model | Dataset | GPU |
 |---------|-------|---------|-----|
-| [`alexnet_imagenette`](./projects/alexnet_imagenette/) | AlexNet (faithful repro) | Imagenette (10-class) | T4 |
-| [`vit-cifar10`](./projects/vit-cifar10/) | Vision Transformer | CIFAR-10 | Kaggle P100 |
-| [`cnn-cifar10`](./projects/cnn-cifar10/) | CNN from scratch | CIFAR-10 | T4 |
+| [`alexnet_imagenette`](./projects/cv/alexnet_imagenette/) | AlexNet (faithful repro) | Imagenette-160 | T4 |
+| [`vit-cifar10`](./projects/cv/vit-cifar10/) | Vision Transformer (scratch) | CIFAR-10 | Kaggle P100 |
+| [`cnn-cifar10`](./projects/cv/cnn-cifar10/) | 3-block CNN | CIFAR-10 | T4 |
+| [`cnn-quantization`](./projects/cv/cnn-quantization/) | ResNet-18 FP32/FP16/INT8/INT4 | CIFAR-10 | T4 |
+| [`cnn-explainer`](./projects/cv/cnn-explainer/) | CNN + XAI (Grad-CAM, Saliency) | CIFAR-10 | T4 |
 
-### NLP & LLMs
+### NLP & LLMs (`projects/nlp/`)
 
 | Project | Task | GPU |
 |---------|------|-----|
-| [`transformer_iwslt`](./projects/transformer_iwslt/) | Attention Is All You Need — IWSLT'14 De→En | T4 |
-| [`vllm-compare`](./projects/vllm-compare/) | vLLM inference benchmarks (SmolLM2, Qwen2.5) | T4 |
-| [`vllm-rag`](./projects/vllm-rag/) | RAG pipeline with vLLM | T4 |
-| [`hotpotqa-reasoning`](./projects/hotpotqa-reasoning/) | CoT vs ReAct prompting | T4 |
-| [`nanogpt`](./projects/nanogpt/) | NanoGPT training experiments | T4 |
-| [`nanochat-colab`](./projects/nanochat-colab/) | NanoChat on Colab | T4 |
-| [`rnn-imdb`](./projects/rnn-imdb/) | RNN sentiment analysis | T4 |
+| [`transformer_iwslt`](./projects/nlp/transformer_iwslt/) | Transformer De→En translation | T4 |
+| [`nanogpt`](./projects/nlp/nanogpt/) | NanoGPT char-level LM | T4 |
+| [`nanochat-colab`](./projects/nlp/nanochat-colab/) | NanoChat full-stack ChatGPT | T4 |
+| [`s1-t4`](./projects/nlp/s1-t4/) | Test-time scaling (QLoRA Qwen2.5-7B) | T4 |
+| [`seq2seq-t4`](./projects/nlp/seq2seq-t4/) | Seq2Seq with attention | T4 |
+| [`rnn-imdb`](./projects/nlp/rnn-imdb/) | BiLSTM sentiment analysis | T4 |
+| [`word2vec-c4`](./projects/nlp/word2vec-c4/) | Skip-gram on C4 corpus | T4 |
+| [`rag-fasttext`](./projects/nlp/rag-fasttext/) | Hybrid RAG: BM25 + FastText + FAISS | T4 |
+| [`vllm-compare`](./projects/nlp/vllm-compare/) | vLLM inference benchmarks | T4 |
+| [`vllm-rag`](./projects/nlp/vllm-rag/) | RAG pipeline with vLLM + ChromaDB | T4 |
+| [`hotpotqa-reasoning`](./projects/nlp/hotpotqa-reasoning/) | CoT vs ReAct prompting | T4 |
 
-### Tutorials & Infrastructure
+### Graph Neural Networks (`projects/gnn/`)
+
+| Project | Model | Datasets | GPU |
+|---------|-------|----------|-----|
+| [`gnn-citation`](./projects/gnn/gnn-citation/) | 2-layer GCN | Cora, CiteSeer, PubMed | T4 |
+
+### Systems & Infrastructure (`projects/systems/`)
 
 | Project | Description |
 |---------|-------------|
-| [`cuda-tutorial`](./projects/cuda-tutorial/) | CUDA kernel tutorials |
-| [`ml-tutorial`](./projects/ml-tutorial/) | ML fundamentals |
-| [`autoresearch-t4`](./projects/autoresearch-t4/) | Automated ML research on T4 |
+| [`autoresearch-t4`](./projects/systems/autoresearch-t4/) | Autonomous LLM pretraining research (5-min budget) |
+| [`cuda-tutorial`](./projects/systems/cuda-tutorial/) | 7 progressive CUDA kernel tutorials |
+| [`swe-agent-colab`](./projects/systems/swe-agent-colab/) | SWE-agent on Colab with vLLM |
+
+### Tutorials (`projects/tutorials/`)
+
+| Project | Description |
+|---------|-------------|
+| [`ml-tutorial`](./projects/tutorials/ml-tutorial/) | NLP, CV, Audio — fine-tune pretrained transformers |
 
 ## Benchmark: DDPG vs TD3
 
@@ -102,7 +125,7 @@ We ran identical Pendulum-v1 training (200 episodes, seed 42, T4 GPU) to compare
 
 **Key finding**: DDPG found a higher peak (-40.95) but immediately lost it. TD3 converged more slowly but its final model is its best model — the policy was still improving at episode 200. For deployment (where you ship the final checkpoint, not a mid-training snapshot), TD3 wins decisively.
 
-**Full report**: [`projects/REPORT_ddpg_vs_td3.md`](./projects/REPORT_ddpg_vs_td3.md) — 20-point eval table, block-average trends, stability analysis, interactive charts on the [landing page](https://1998x-stack.github.io/colab-cli/).
+**Full report**: [`projects/rl/REPORT_ddpg_vs_td3.md`](./projects/rl/REPORT_ddpg_vs_td3.md) — 20-point eval table, block-average trends, stability analysis, interactive charts on the [landing page](https://1998x-stack.github.io/colab-cli/).
 
 ## Proxy Setup
 
@@ -149,20 +172,37 @@ See [`.claude/skills/colab-cli/SKILL.md`](./.claude/skills/colab-cli/SKILL.md) a
 ## Repository Structure
 
 ```
-.claude/skills/           # Claude Code skills (colab-cli, kaggle-cli)
-├── colab-cli/            # Full Colab CLI workflow + 22 gotchas
-└── kaggle-cli/           # Full Kaggle CLI workflow + 16 gotchas
-docs/                    # GitHub Pages landing page + Chinese guide
-projects/                # ML training projects (17 total)
-├── ddpg-gym/            # DDPG on Pendulum (train.py, launch.py, fetch.sh)
-├── td3-gym/             # TD3 on Pendulum (train.py, launch.py, fetch.sh)
-├── REPORT_ddpg_vs_td3.md # Full benchmark report
-├── alexnet_imagenette/  # AlexNet faithful reproduction
-├── transformer_iwslt/   # Transformer De→En translation
-├── vit-cifar10/         # Vision Transformer
-├── vllm-compare/        # vLLM model benchmarks
-├── rl-sac/ rl-dqn-atari/ cnn-cifar10/ nanogpt/ nanochat-colab/ rnn-imdb/
-└── vllm-rag/ cuda-tutorial/ ml-tutorial/ autoresearch-t4/ hotpotqa-reasoning/
+.claude/skills/                  # Claude Code skills (colab-cli, kaggle-cli)
+├── colab-cli/                   # Full Colab CLI workflow + 22 gotchas
+└── kaggle-cli/                  # Full Kaggle CLI workflow + 16 gotchas
+docs/                            # Documentation
+├── guides/                      # How-to guides (6 docs)
+├── reference/                   # Technical deep-dives (5 docs)
+├── superpowers/                 # Superpowers plans and specs
+├── google-workspace-mcp/        # Google Workspace MCP integration
+└── plots/                       # Generated plots
+papers/                          # Research paper notes
+├── s1/                          # s1: Simple test-time scaling
+└── seq2seq/                     # Seq2Seq with attention
+projects/                        # ML training projects (30 total, 6 categories)
+├── rl/                          # Reinforcement Learning (9 projects)
+│   ├── td3-gym/ ddpg-gym/ ddpg-td3-mujoco/ ddqn-noisy-ram/
+│   ├── ppo-atari-ram/ ppo-mujoco/ rl-dqn-atari/ rl-sac/ rl-sarsa-gym/
+│   └── REPORT_ddpg_vs_td3.md
+├── cv/                          # Computer Vision (5 projects)
+│   ├── alexnet_imagenette/ cnn-cifar10/ cnn-explainer/
+│   └── cnn-quantization/ vit-cifar10/
+├── nlp/                         # NLP & LLMs (11 projects)
+│   ├── transformer_iwslt/ nanogpt/ nanochat-colab/ s1-t4/ seq2seq-t4/
+│   ├── rnn-imdb/ word2vec-c4/ rag-fasttext/ hotpotqa-reasoning/
+│   └── vllm-compare/ vllm-rag/
+├── gnn/                         # Graph Neural Networks (1 project)
+│   └── gnn-citation/
+├── systems/                     # Systems & Infrastructure (3 projects)
+│   └── autoresearch-t4/ cuda-tutorial/ swe-agent-colab/
+└── tutorials/                   # Education (1 project)
+    └── ml-tutorial/
+index.md                         # Full project index with descriptions
 ```
 
 ## Key Gotchas
@@ -179,11 +219,13 @@ projects/                # ML training projects (17 total)
 
 ## Docs
 
-- [`docs/DeepSeek-Colab CLI 深度使用指南.md`](./docs/DeepSeek-Colab%20CLI%20深度使用指南.md) — Comprehensive guide (Chinese)
-- [`docs/multi-account-colab.md`](./docs/multi-account-colab.md) — Multi-account setup
+- [`docs/guides/`](./docs/guides/) — How-to guides (Colab CLI, multi-account, quantization, session monitoring)
+- [`docs/reference/`](./docs/reference/) — Technical deep-dives (model gotchas, WebSocket analysis, Kaggle analysis)
+- [`docs/superpowers/`](./docs/superpowers/) — Superpowers plans and specs
 - [`.claude/skills/colab-cli/references/gotchas.md`](./.claude/skills/colab-cli/references/gotchas.md) — 22 field-tested gotchas
 - [`.claude/skills/colab-cli/references/workflows.md`](./.claude/skills/colab-cli/references/workflows.md) — Full workflow patterns
-- [`projects/REPORT_ddpg_vs_td3.md`](./projects/REPORT_ddpg_vs_td3.md) — DDPG vs TD3 benchmark
+- [`projects/rl/REPORT_ddpg_vs_td3.md`](./projects/rl/REPORT_ddpg_vs_td3.md) — DDPG vs TD3 benchmark
+- [`index.md`](./index.md) — Full project index with descriptions
 
 ## License
 

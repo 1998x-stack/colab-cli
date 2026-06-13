@@ -780,7 +780,7 @@ def main():
     from session_recover import SessionRecoverer
 
     # 配置
-    PROJECT_DIR = "/Users/mx/Desktop/projects/colab-cli/projects/transformer_iwslt"
+    PROJECT_DIR = "/Users/mx/Desktop/projects/colab-cli/projects/nlp/transformer_iwslt"
     LAUNCH_SCRIPT = "launch.py"
     ENABLE_AUTO_RECOVER = True
 
@@ -1221,11 +1221,11 @@ Week 3-4 (P2):
 /content/train.log            # train.py stdout/stderr
 
 # 项目监控脚本 (本地)
-projects/alexnet_imagenette/watchdog.py
-projects/alexnet_imagenette/check_progress.py
-projects/transformer_iwslt/check_progress.py
-projects/nanogpt/check_progress.py
-projects/vllm-compare/check_progress.py
+projects/cv/alexnet_imagenette/watchdog.py
+projects/cv/alexnet_imagenette/check_progress.py
+projects/nlp/transformer_iwslt/check_progress.py
+projects/nlp/nanogpt/check_progress.py
+projects/nlp/vllm-compare/check_progress.py
 ```
 
 ## 附录 B: Daemon 退出原因速查表

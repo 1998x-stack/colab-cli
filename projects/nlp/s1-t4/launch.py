@@ -14,11 +14,15 @@ LOG_DIR = "/content/s1-t4/logs"
 TRAIN_SCRIPT = "/content/s1-t4/train.py"
 DATA_PATH = "/content/s1-t4/s1k_filtered.jsonl"
 CHECKPOINT_DIR = "/content/s1-t4/checkpoints"
+RESULTS_DIR = "/content/s1-t4/results"
+PNGS_DIR = "/content/s1-t4/pngs"
 DEPS = ["bitsandbytes", "peft", "datasets", "matplotlib", "tqdm"]
 
 # --- Create output directories ---
 os.makedirs(LOG_DIR, exist_ok=True)
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+os.makedirs(RESULTS_DIR, exist_ok=True)
+os.makedirs(PNGS_DIR, exist_ok=True)
 
 # --- Set HF_TOKEN ---
 try:
@@ -46,6 +50,7 @@ if os.path.exists(hf_cache):
 # --- Spawn training ---
 env = os.environ.copy()
 env["PYTHONUNBUFFERED"] = "1"
+env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 cmd = (
     f"{sys.executable} -u {TRAIN_SCRIPT} "
