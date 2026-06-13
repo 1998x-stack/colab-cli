@@ -10,7 +10,6 @@ Metrics: NDCG@10, MAP@100, Recall@100, MRR
 """
 
 import os
-import sys
 import csv
 import time
 import json
@@ -20,7 +19,6 @@ from collections import defaultdict
 
 import numpy as np
 import scipy.sparse as sp
-from sklearn.preprocessing import normalize as sklearn_normalize
 from sklearn.feature_extraction.text import CountVectorizer
 import fasttext
 import faiss
@@ -448,38 +446,38 @@ log(f"Config: ft_dim={args.fasttext_dim}, ft_epoch={args.fasttext_epoch}, "
 log("=" * 60)
 
 # CSV header
-csv_file = open(CSV_PATH, "w", newline="")
-csv_writer = csv.writer(csv_file)
-csv_writer.writerow(["method", "ndcg@10", "map@100", "recall@100", "mrr",
-                     "latency_ms_mean", "latency_ms_p95", "total_s",
-                     "ft_dim", "ft_epoch", "bm25_k1", "bm25_b", "hybrid_alpha"])
-csv_file.flush()
-
-all_metrics = []
-
-# Evaluate BM25
-bm25_metrics = run_evaluation(lambda q, k: bm25_search(q, k=k), "BM25", k=args.top_k)
-all_metrics.append(bm25_metrics)
-
-# Evaluate FastText+FAISS
-dense_metrics = run_evaluation(lambda q, k: faiss_search(q, k=k), "FastText+FAISS", k=args.top_k)
-all_metrics.append(dense_metrics)
-
-# Evaluate Hybrid
-hybrid_metrics = run_evaluation(
-    lambda q, k: hybrid_search(q, k=k, alpha=args.hybrid_alpha),
-    "Hybrid", k=args.top_k)
-all_metrics.append(hybrid_metrics)
-
-# Write CSV rows
-for m in all_metrics:
-    csv_writer.writerow([
-        m["method"], m["ndcg@10"], m["map@100"], m["recall@100"], m["mrr"],
-        m["latency_ms_mean"], m["latency_ms_p95"], m["total_s"],
-        args.fasttext_dim, args.fasttext_epoch, args.bm25_k1, args.bm25_b,
-        args.hybrid_alpha,
-    ])
+with open(CSV_PATH, "w", newline="") as csv_file:
+    csv_writer = csv.writer(csv_file)
+    csv_writer.writerow(["method", "ndcg@10", "map@100", "recall@100", "mrr",
+                         "latency_ms_mean", "latency_ms_p95", "total_s",
+                         "ft_dim", "ft_epoch", "bm25_k1", "bm25_b", "hybrid_alpha"])
     csv_file.flush()
+
+    all_metrics = []
+
+    # Evaluate BM25
+    bm25_metrics = run_evaluation(bm25_search, "BM25", k=args.top_k)
+    all_metrics.append(bm25_metrics)
+
+    # Evaluate FastText+FAISS
+    dense_metrics = run_evaluation(faiss_search, "FastText+FAISS", k=args.top_k)
+    all_metrics.append(dense_metrics)
+
+    # Evaluate Hybrid
+    hybrid_metrics = run_evaluation(
+        lambda q, k: hybrid_search(q, k=k, alpha=args.hybrid_alpha),
+        "Hybrid", k=args.top_k)
+    all_metrics.append(hybrid_metrics)
+
+    # Write CSV rows
+    for m in all_metrics:
+        csv_writer.writerow([
+            m["method"], m["ndcg@10"], m["map@100"], m["recall@100"], m["mrr"],
+            m["latency_ms_mean"], m["latency_ms_p95"], m["total_s"],
+            args.fasttext_dim, args.fasttext_epoch, args.bm25_k1, args.bm25_b,
+            args.hybrid_alpha,
+        ])
+        csv_file.flush()
 
 # Generate visualization
 plot_results(all_metrics, args.out_dir)
@@ -508,7 +506,6 @@ log(f"FAISS index saved: {args.out_dir}/checkpoints/faiss_index.bin")
 ft_model.save_model(f"{args.out_dir}/checkpoints/fasttext_model.bin")
 log(f"FastText model saved: {args.out_dir}/checkpoints/fasttext_model.bin")
 
-csv_file.close()
 log("Done.")
 log(f"Output: {args.out_dir}/")
 log(f"  logs/train.log  -- full training log")
