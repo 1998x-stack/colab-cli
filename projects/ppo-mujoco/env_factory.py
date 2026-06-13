@@ -14,7 +14,6 @@ def make_env(env_id: str, num_envs: int = 1, seed: int = 42):
             env = gym.wrappers.NormalizeObservation(env)
             env = gym.wrappers.TransformObservation(
                 env, lambda obs: np.clip(obs, -10, 10), observation_space=None)
-            env = gym.wrappers.NormalizeReward(env, gamma=0.99)
             env.reset(seed=seed + rank)
             return env
         return _init
