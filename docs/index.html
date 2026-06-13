@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>colab-cli — GPU Training from the Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #08080c;
+  --surface: #0e0e15;
+  --surface2: #13131d;
+  --border: #1e1e2e;
+  --text: #b0b5c0;
+  --text-dim: #5a5f6e;
+  --text-bright: #e0e4f0;
+  --green: #00e05a;
+  --green-dim: #007a32;
+  --red: #ff4455;
+  --amber: #f0a030;
+  --blue: #4090ff;
+  --purple: #a070ff;
+  --cyan: #20d0c0;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --scanline-opacity: 0.03;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Scanline overlay */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none; z-index: 9999;
+}
+
+/* Noise texture */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 9998;
+}
+
+/* ── Layout ─────────────────────────────────────────────── */
+.container { max-width: 1100px; margin: 0 auto; padding: 0 2rem; }
+
+/* ── Nav ───────────────────────────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(8,8,12,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 0;
+}
+nav .container {
+  display: flex; align-items: center; justify-content: space-between;
+}
+nav .logo {
+  font-family: var(--font-mono);
+  font-size: 0.9rem; font-weight: 700;
+  color: var(--green);
+  text-decoration: none;
+}
+nav .logo span { color: var(--text-dim); }
+nav .links { display: flex; gap: 1.5rem; list-style: none; }
+nav .links a {
+  font-family: var(--font-mono); font-size: 0.75rem;
+  color: var(--text-dim); text-decoration: none;
+  transition: color 0.2s;
+}
+nav .links a:hover { color: var(--green); }
+
+/* ── Hero ──────────────────────────────────────────────── */
+.hero {
+  padding: 8rem 0 5rem;
+  position: relative;
+}
+.hero .terminal {
+  font-family: var(--font-mono); font-size: 0.85rem;
+  color: var(--text-dim); margin-bottom: 1.5rem;
+}
+.hero .terminal .prompt { color: var(--green); }
+.hero .terminal .cursor {
+  display: inline-block; width: 0.6em; height: 1.1em;
+  background: var(--green);
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom; margin-left: 2px;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.hero h1 {
+  font-family: var(--font-mono); font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 700; color: var(--text-bright);
+  line-height: 1.15; margin-bottom: 1.25rem;
+  letter-spacing: -0.03em;
+}
+.hero h1 em { font-style: normal; color: var(--green); }
+.hero .subtitle {
+  font-size: 1.15rem; color: var(--text-dim); max-width: 560px;
+  margin-bottom: 2rem;
+}
+
+.hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 1.25rem; border-radius: 4px;
+  font-family: var(--font-mono); font-size: 0.8rem;
+  text-decoration: none; cursor: pointer;
+  border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+.btn-primary {
+  background: var(--green); color: #000; border-color: var(--green);
+  font-weight: 700;
+}
+.btn-primary:hover { background: #00f068; }
+.btn-ghost { color: var(--text); background: transparent; }
+.btn-ghost:hover { border-color: var(--green); color: var(--green); }
+
+/* ── Stats bar ──────────────────────────────────────────── */
+.stats-bar {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 1.25rem 0;
+  margin-bottom: 5rem;
+}
+.stats-bar .container {
+  display: flex; gap: 3rem; flex-wrap: wrap;
+}
+.stat-item { display: flex; flex-direction: column; gap: 0.15rem; }
+.stat-value {
+  font-family: var(--font-mono); font-size: 1.5rem;
+  font-weight: 700; color: var(--text-bright);
+}
+.stat-label {
+  font-family: var(--font-mono); font-size: 0.7rem;
+  color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em;
+}
+
+/* ── Sections ───────────────────────────────────────────── */
+section { padding: 5rem 0; }
+.section-header {
+  margin-bottom: 3rem;
+}
+.section-label {
+  font-family: var(--font-mono); font-size: 0.7rem;
+  color: var(--green); text-transform: uppercase;
+  letter-spacing: 0.15em; margin-bottom: 0.5rem;
+}
+.section-header h2 {
+  font-family: var(--font-mono); font-size: 1.75rem;
+  color: var(--text-bright); font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ── Project Grid ───────────────────────────────────────── */
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+.project-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1.5rem;
+  transition: border-color 0.2s, transform 0.2s;
+  text-decoration: none; display: block;
+}
+.project-card:hover {
+  border-color: var(--green-dim);
+  transform: translateY(-2px);
+}
+.project-card .card-icon {
+  font-size: 1.5rem; margin-bottom: 0.75rem;
+}
+.project-card h3 {
+  font-family: var(--font-mono); font-size: 0.9rem;
+  color: var(--text-bright); margin-bottom: 0.4rem;
+}
+.project-card .card-desc {
+  font-size: 0.85rem; color: var(--text-dim); line-height: 1.5;
+}
+.project-card .card-tags {
+  display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.75rem;
+}
+.tag {
+  font-family: var(--font-mono); font-size: 0.65rem;
+  padding: 0.15rem 0.5rem; border-radius: 3px;
+  background: var(--surface2); color: var(--text-dim);
+}
+.tag.gpu { color: var(--amber); }
+.tag.rl { color: var(--cyan); }
+.tag.cv { color: var(--purple); }
+.tag.nlp { color: var(--blue); }
+
+/* ── Benchmark Section ──────────────────────────────────── */
+.benchmark-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+@media (max-width: 768px) { .benchmark-grid { grid-template-columns: 1fr; } }
+
+.bench-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 1.5rem;
+}
+.bench-card h3 {
+  font-family: var(--font-mono); font-size: 0.85rem;
+  color: var(--text-bright); margin-bottom: 1rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.bench-card h3 .dot { width: 8px; height: 8px; border-radius: 50%; }
+.bench-card h3 .dot.ddpg { background: var(--red); }
+.bench-card h3 .dot.td3 { background: var(--green); }
+
+.bench-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.bench-metric { }
+.bench-metric .label {
+  font-family: var(--font-mono); font-size: 0.65rem;
+  color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em;
+}
+.bench-metric .value {
+  font-family: var(--font-mono); font-size: 1.3rem; font-weight: 700;
+  color: var(--text-bright);
+}
+.bench-metric .value.best { color: var(--green); }
+.bench-metric .value.worst { color: var(--red); }
+
+/* Chart area */
+.chart-wrapper {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.chart-wrapper h3 {
+  font-family: var(--font-mono); font-size: 0.85rem;
+  color: var(--text-bright); margin-bottom: 1rem;
+}
+.chart-container { position: relative; height: 320px; }
+.chart-container canvas { width: 100% !important; }
+
+/* verdict */
+.verdict {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;
+  margin-top: 1.5rem;
+}
+@media (max-width: 600px) { .verdict { grid-template-columns: 1fr; } }
+.verdict-item {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 1.25rem; text-align: center;
+}
+.verdict-item .winner {
+  font-family: var(--font-mono); font-size: 0.75rem;
+  color: var(--green); text-transform: uppercase; letter-spacing: 0.1em;
+  margin-bottom: 0.3rem;
+}
+.verdict-item .metric {
+  font-family: var(--font-mono); font-size: 0.7rem;
+  color: var(--text-dim); margin-bottom: 0.4rem;
+}
+.verdict-item .detail {
+  font-size: 0.8rem; color: var(--text);
+}
+
+/* ── CLI Section ────────────────────────────────────────── */
+.cli-block {
+  background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden;
+}
+.cli-header {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.cli-dot { width: 10px; height: 10px; border-radius: 50%; }
+.cli-dot.r { background: #ff5f57; } .cli-dot.y { background: #febc2e; } .cli-dot.g { background: #28c840; }
+.cli-title {
+  font-family: var(--font-mono); font-size: 0.7rem;
+  color: var(--text-dim); margin-left: 0.5rem;
+}
+.cli-body {
+  padding: 1.25rem; overflow-x: auto;
+}
+.cli-body pre {
+  font-family: var(--font-mono); font-size: 0.78rem;
+  color: var(--text); line-height: 1.7;
+  white-space: pre-wrap;
+}
+.cli-body .c { color: var(--text-dim); }  /* comment */
+.cli-body .k { color: var(--green); }     /* keyword / command */
+.cli-body .s { color: var(--amber); }     /* string */
+.cli-body .v { color: var(--cyan); }      /* value */
+
+/* ── Footer ─────────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 3rem 0; margin-top: 5rem;
+}
+footer .container {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 1rem;
+}
+footer .copy {
+  font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);
+}
+footer .copy a { color: var(--green); text-decoration: none; }
+
+/* ── Scroll animations ──────────────────────────────────── */
+.reveal {
+  opacity: 0; transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+
+/* ── Section divider ───────────────────────────────────── */
+.section-divider {
+  border: none; border-top: 1px solid var(--border);
+  margin: 0;
+}
+
+/* Selection */
+::selection { background: var(--green-dim); color: var(--text-bright); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <a href="#" class="logo">colab<span>-cli</span></a>
+    <ul class="links">
+      <li><a href="#projects">Projects</a></li>
+      <li><a href="#benchmark">Benchmark</a></li>
+      <li><a href="#quickstart">Quickstart</a></li>
+      <li><a href="https://github.com/1998x-stack/colab-cli">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ═══ Hero ═══════════════════════════════════════════════ -->
+<header class="hero">
+  <div class="container">
+    <div class="terminal reveal">
+      <span class="prompt">$</span> colab new --gpu T4 -s training
+      <br><span class="prompt">$</span> colab exec -f train.py --timeout 120
+      <br><span class="prompt">$</span> colab download /content/output ./results
+      <span class="cursor"></span>
+    </div>
+    <h1 class="reveal">GPU training,<br><em>straight from the terminal.</em></h1>
+    <p class="subtitle reveal">
+      A CLI toolkit for running ML experiments on Google Colab and Kaggle GPUs.
+      Provision, execute, monitor, and fetch — no browser needed.
+    </p>
+    <div class="hero-actions reveal">
+      <a href="#quickstart" class="btn btn-primary">Quickstart</a>
+      <a href="https://github.com/1998x-stack/colab-cli" class="btn btn-ghost">GitHub &rarr;</a>
+    </div>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div class="container">
+    <div class="stat-item reveal">
+      <div class="stat-value">12+</div>
+      <div class="stat-label">ML Projects</div>
+    </div>
+    <div class="stat-item reveal">
+      <div class="stat-value">4</div>
+      <div class="stat-label">Colab Accounts</div>
+    </div>
+    <div class="stat-item reveal">
+      <div class="stat-value">T4 GPU</div>
+      <div class="stat-label">Free Tier</div>
+    </div>
+    <div class="stat-item reveal">
+      <div class="stat-value">200 eps</div>
+      <div class="stat-label">Per Run</div>
+    </div>
+    <div class="stat-item reveal">
+      <div class="stat-value">2 min</div>
+      <div class="stat-label">Cron Fetch</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Projects ═══════════════════════════════════════════ -->
+<section id="projects">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="section-label">/projects</div>
+      <h2>ML Project Directory</h2>
+    </div>
+    <div class="project-grid">
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/td3-gym" class="project-card reveal">
+        <div class="card-icon">🎯</div>
+        <h3>TD3 — Pendulum-v1</h3>
+        <p class="card-desc">Twin Delayed DDPG. Stable convergence, no catastrophic forgetting. Best eval -71.76 at episode 200.</p>
+        <div class="card-tags"><span class="tag rl">RL</span><span class="tag gpu">T4 GPU</span><span class="tag">PyTorch</span></div>
+      </a>
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/ddpg-gym" class="project-card reveal">
+        <div class="card-icon">📈</div>
+        <h3>DDPG — Pendulum-v1</h3>
+        <p class="card-desc">Deep Deterministic Policy Gradient. Peak -40.95 at ep 40, then catastrophic forgetting. Classic instability.</p>
+        <div class="card-tags"><span class="tag rl">RL</span><span class="tag gpu">T4 GPU</span><span class="tag">PyTorch</span></div>
+      </a>
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/transformer_iwslt" class="project-card reveal">
+        <div class="card-icon">🔤</div>
+        <h3>Transformer — IWSLT'14</h3>
+        <p class="card-desc">Attention Is All You Need. German→English translation with BLEU scoring. Beam search eval.</p>
+        <div class="card-tags"><span class="tag nlp">NLP</span><span class="tag gpu">T4 GPU</span><span class="tag">PyTorch</span></div>
+      </a>
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/alexnet_imagenette" class="project-card reveal">
+        <div class="card-icon">🖼️</div>
+        <h3>AlexNet — Imagenette</h3>
+        <p class="card-desc">Faithful reproduction of the 2012 classic. 10-class subset, PCA color augmentation, 10-view eval.</p>
+        <div class="card-tags"><span class="tag cv">CV</span><span class="tag gpu">T4 GPU</span><span class="tag">PyTorch</span></div>
+      </a>
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/vit-cifar10" class="project-card reveal">
+        <div class="card-icon">👁️</div>
+        <h3>ViT — CIFAR-10</h3>
+        <p class="card-desc">Vision Transformer from scratch. 3-config experiment on Kaggle P100 GPU.</p>
+        <div class="card-tags"><span class="tag cv">CV</span><span class="tag gpu">Kaggle P100</span><span class="tag">PyTorch</span></div>
+      </a>
+      <a href="https://github.com/1998x-stack/colab-cli/tree/main/projects/vllm-compare" class="project-card reveal">
+        <div class="card-icon">⚡</div>
+        <h3>vLLM — Model Benchmarks</h3>
+        <p class="card-desc">LLM inference benchmarks on Colab T4. SmolLM2-1.7B, Qwen2.5-3B with vLLM 0.10.2.</p>
+        <div class="card-tags"><span class="tag nlp">LLM</span><span class="tag gpu">T4 GPU</span><span class="tag">vLLM</span></div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ═══ Benchmark ══════════════════════════════════════════ -->
+<section id="benchmark">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="section-label">/benchmark</div>
+      <h2>DDPG vs TD3 — Pendulum-v1</h2>
+    </div>
+
+    <!-- Side-by-side cards -->
+    <div class="benchmark-grid reveal">
+      <div class="bench-card">
+        <h3><span class="dot ddpg"></span> DDPG</h3>
+        <div class="bench-metrics">
+          <div class="bench-metric">
+            <div class="label">Best Eval</div>
+            <div class="value best">-40.95</div>
+          </div>
+          <div class="bench-metric">
+            <div class="label">Final Eval</div>
+            <div class="value worst">-165.96</div>
+          </div>
+          <div class="bench-metric">
+            <div class="label">Best Episode</div>
+            <div class="value">40</div>
+          </div>
+          <div class="bench-metric">
+            <div class="label">Forgetting &Delta;</div>
+            <div class="value worst">606.3</div>
+          </div>
+        </div>
+      </div>
+      <div class="bench-card">
+        <h3><span class="dot td3"></span> TD3</h3>
+        <div class="bench-metrics">
+          <div class="bench-metric">
+            <div class="label">Best Eval</div>
+            <div class="value best">-71.76</div>
+          </div>
+          <div class="bench-metric">
+            <div class="label">Final Eval</div>
+            <div class="value best">-71.76</div>
+          </div>
+          <div class="bench-metric">
+            <div class="label">Best Episode</div>
+            <div class="value">200</div>
+          </div>
+          <div class="bench-metric">
+            <div class="label">Forgetting &Delta;</div>
+            <div class="value best">0.0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart - eval comparison -->
+    <div class="chart-wrapper reveal">
+      <h3>Evaluation Reward (noise-free, 5 episodes per point)</h3>
+      <div class="chart-container"><canvas id="evalChart"></canvas></div>
+    </div>
+
+    <!-- Chart - training reward -->
+    <div class="chart-wrapper reveal">
+      <h3>Training Reward (per episode, 10-ep moving average)</h3>
+      <div class="chart-container"><canvas id="rewardChart"></canvas></div>
+    </div>
+
+    <!-- Verdict -->
+    <div class="verdict reveal">
+      <div class="verdict-item">
+        <div class="winner">TD3 Wins</div>
+        <div class="metric">Final Model Quality</div>
+        <div class="detail">TD3 -71.76 vs DDPG -165.96. TD3's final model IS its best model.</div>
+      </div>
+      <div class="verdict-item">
+        <div class="winner">TD3 Wins</div>
+        <div class="metric">Stability</div>
+        <div class="detail">Last-5 eval stdev: TD3 27.9 vs DDPG 51.1. Zero catastrophic forgetting.</div>
+      </div>
+      <div class="verdict-item">
+        <div class="winner">DDPG Wins</div>
+        <div class="metric">Peak Performance</div>
+        <div class="detail">DDPG found -40.95 at ep 40 (near-optimal). TD3 never quite matched it.</div>
+      </div>
+    </div>
+
+    <p style="text-align:center; margin-top:1.5rem; font-family:var(--font-mono); font-size:0.75rem; color:var(--text-dim);">
+      Full report: <a href="https://github.com/1998x-stack/colab-cli/blob/main/projects/REPORT_ddpg_vs_td3.md" style="color:var(--green);">REPORT_ddpg_vs_td3.md</a>
+    </p>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ═══ Quickstart ═════════════════════════════════════════ -->
+<section id="quickstart">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="section-label">/quickstart</div>
+      <h2>CLI in 30 Seconds</h2>
+    </div>
+
+    <div class="cli-block reveal" style="margin-bottom:1.5rem;">
+      <div class="cli-header">
+        <span class="cli-dot r"></span><span class="cli-dot y"></span><span class="cli-dot g"></span>
+        <span class="cli-title">terminal — colab-cli</span>
+      </div>
+      <div class="cli-body">
+        <pre><span class="c"># 1. Provision GPU VM</span>
+<span class="k">colab</span> new --gpu T4 -s my-training
+
+<span class="c"># 2. Upload your script</span>
+<span class="k">colab</span> upload train.py /content/train.py
+
+<span class="c"># 3. Launch as detached background job</span>
+<span class="k">colab</span> exec -f launch.py --timeout 120
+
+<span class="c"># 4. Monitor — fetch logs, metrics, plots</span>
+<span class="k">./fetch.sh</span>                         <span class="c"># download everything</span>
+<span class="k">colab</span> download /content/output/model.pt ./
+
+<span class="c"># 5. Tear down</span>
+<span class="k">colab</span> stop -s my-training</pre>
+      </div>
+    </div>
+
+    <div class="cli-block reveal" style="margin-bottom:1.5rem;">
+      <div class="cli-header">
+        <span class="cli-dot r"></span><span class="cli-dot y"></span><span class="cli-dot g"></span>
+        <span class="cli-title">terminal — multi-account</span>
+      </div>
+      <div class="cli-body">
+        <pre><span class="c"># 4 Colab accounts, isolated via $HOME</span>
+<span class="k">colab</span> new --gpu T4 -s run1     <span class="c"># hackxie1998 (default)</span>
+<span class="k">cb</span> new --gpu T4 -s run2        <span class="c"># stefaniehu929</span>
+<span class="k">cc</span> new --gpu T4 -s run3        <span class="c"># xbetterdetermine</span>
+<span class="k">clb</span> new --gpu T4 -s run4       <span class="c"># xieminghack</span></pre>
+      </div>
+    </div>
+
+    <div class="cli-block reveal">
+      <div class="cli-header">
+        <span class="cli-dot r"></span><span class="cli-dot y"></span><span class="cli-dot g"></span>
+        <span class="cli-title">terminal — cron fetch (every 2 min)</span>
+      </div>
+      <div class="cli-body">
+        <pre><span class="c"># fetch.sh — downloads log, metrics.json, progress.png</span>
+<span class="k">export</span> HTTPS_PROXY=http://127.0.0.1:7890
+<span class="k">export</span> ALL_PROXY=socks5://127.0.0.1:7890
+
+<span class="k">colab</span> download -s td3 /content/td3-output/train.log ./output/
+<span class="k">colab</span> download -s td3 /content/td3-output/metrics.json ./output/
+<span class="k">colab</span> download -s td3 /content/td3-output/plots/progress.png ./output/plots/
+
+<span class="c"># Result: real-time training dashboard, no browser needed</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ Footer ═════════════════════════════════════════════ -->
+<footer>
+  <div class="container">
+    <div class="copy">
+      <a href="https://github.com/1998x-stack/colab-cli">colab-cli</a> &mdash;
+      GPU training from the terminal. Built with Claude Code.
+    </div>
+    <div class="copy">
+      MIT License &middot; 2026
+    </div>
+  </div>
+</footer>
+
+<!-- ═══ Charts ═════════════════════════════════════════════ -->
+<script>
+// ── Fetch data & render ──────────────────────────────────
+fetch('metrics_data.json')
+  .then(r => r.json())
+  .then(data => {
+    renderEvalChart(data);
+    renderRewardChart(data);
+  })
+  .catch(err => console.error('Metrics load failed:', err));
+
+function movingAvg(arr, window) {
+  const result = [];
+  for (let i = 0; i < arr.length; i++) {
+    const start = Math.max(0, i - window + 1);
+    const slice = arr.slice(start, i + 1);
+    result.push(slice.reduce((a,b) => a + b, 0) / slice.length);
+  }
+  return result;
+}
+
+function renderEvalChart(data) {
+  const ctx = document.getElementById('evalChart').getContext('2d');
+  const ddpg = data.ddpg_evals;
+  const td3 = data.td3_evals;
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ddpg.map(e => e.episode),
+      datasets: [
+        {
+          label: 'DDPG',
+          data: ddpg.map(e => e.mean),
+          borderColor: '#ff4455',
+          backgroundColor: 'rgba(255,68,85,0.08)',
+          borderWidth: 1.5,
+          pointRadius: 3,
+          pointBackgroundColor: '#ff4455',
+          tension: 0.2,
+        },
+        {
+          label: 'TD3',
+          data: td3.map(e => e.mean),
+          borderColor: '#00e05a',
+          backgroundColor: 'rgba(0,224,90,0.06)',
+          borderWidth: 1.5,
+          pointRadius: 3,
+          pointBackgroundColor: '#00e05a',
+          tension: 0.2,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: {
+          labels: { color: '#b0b5c0', font: { family: "'JetBrains Mono', monospace", size: 12 }, usePointStyle: true }
+        },
+        tooltip: {
+          backgroundColor: '#13131d', borderColor: '#1e1e2e', borderWidth: 1,
+          titleColor: '#e0e4f0', bodyColor: '#b0b5c0',
+          titleFont: { family: "'JetBrains Mono', monospace" },
+          bodyFont: { family: "'JetBrains Mono', monospace" },
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { text: 'Episode', color: '#5a5f6e', font: { family: "'JetBrains Mono', monospace" } },
+          ticks: { color: '#5a5f6e', font: { family: "'JetBrains Mono', monospace", size: 10 } },
+          grid: { color: 'rgba(30,30,46,0.5)' },
+        },
+        y: {
+          title: { text: 'Mean Eval Reward', color: '#5a5f6e', font: { family: "'JetBrains Mono', monospace" } },
+          ticks: { color: '#5a5f6e', font: { family: "'JetBrains Mono', monospace", size: 10 } },
+          grid: { color: 'rgba(30,30,46,0.5)' },
+        }
+      }
+    }
+  });
+}
+
+function renderRewardChart(data) {
+  const ctx = document.getElementById('rewardChart').getContext('2d');
+  const dRewards = data.ddpg_rewards.map(e => e.reward);
+  const tRewards = data.td3_rewards.map(e => e.reward);
+  const dMA = movingAvg(dRewards, 10);
+  const tMA = movingAvg(tRewards, 10);
+  const labels = data.ddpg_rewards.map(e => e.episode);
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'DDPG',
+          data: dMA,
+          borderColor: '#ff4455',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+          tension: 0.3,
+        },
+        {
+          label: 'TD3',
+          data: tMA,
+          borderColor: '#00e05a',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+          tension: 0.3,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: {
+          labels: { color: '#b0b5c0', font: { family: "'JetBrains Mono', monospace", size: 12 }, usePointStyle: true }
+        },
+        tooltip: {
+          backgroundColor: '#13131d', borderColor: '#1e1e2e', borderWidth: 1,
+          titleColor: '#e0e4f0', bodyColor: '#b0b5c0',
+          titleFont: { family: "'JetBrains Mono', monospace" },
+          bodyFont: { family: "'JetBrains Mono', monospace" },
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { text: 'Episode', color: '#5a5f6e', font: { family: "'JetBrains Mono', monospace" } },
+          ticks: { color: '#5a5f6e', font: { family: "'JetBrains Mono', monospace", size: 10 } },
+          grid: { color: 'rgba(30,30,46,0.5)' },
+        },
+        y: {
+          title: { text: 'Training Reward (MA10)', color: '#5a5f6e', font: { family: "'JetBrains Mono', monospace" } },
+          ticks: { color: '#5a5f6e', font: { family: "'JetBrains Mono', monospace", size: 10 } },
+          grid: { color: 'rgba(30,30,46,0.5)' },
+        }
+      }
+    }
+  });
+}
+
+// ── Scroll reveal ────────────────────────────────────────
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
