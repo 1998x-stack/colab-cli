@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/MsPacman-ram-v5",
+  "n_actions": 9,
+  "solved_threshold": 3000,
+  "network": "mlp-large",
+  "total_timesteps": 1000000
+}

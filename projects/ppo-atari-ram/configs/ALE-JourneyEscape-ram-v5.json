@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/JourneyEscape-ram-v5",
+  "n_actions": 18,
+  "solved_threshold": 0,
+  "network": "mlp-large",
+  "total_timesteps": 1000000
+}

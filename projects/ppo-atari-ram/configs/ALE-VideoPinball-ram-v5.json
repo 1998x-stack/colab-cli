@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/VideoPinball-ram-v5",
+  "n_actions": 9,
+  "solved_threshold": 100000,
+  "network": "mlp-small",
+  "total_timesteps": 500000
+}

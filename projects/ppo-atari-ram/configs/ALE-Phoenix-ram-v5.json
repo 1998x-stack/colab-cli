@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/Phoenix-ram-v5",
+  "n_actions": 8,
+  "solved_threshold": 10000,
+  "network": "mlp-medium",
+  "total_timesteps": 500000
+}

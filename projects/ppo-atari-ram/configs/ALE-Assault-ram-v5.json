@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/Assault-ram-v5",
+  "n_actions": 7,
+  "solved_threshold": 800,
+  "network": "mlp-medium",
+  "total_timesteps": 1000000
+}

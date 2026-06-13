@@ -1,0 +1,7 @@
+{
+  "env_id": "ALE/Asterix-ram-v5",
+  "n_actions": 9,
+  "solved_threshold": 5000,
+  "network": "mlp-medium",
+  "total_timesteps": 500000
+}
