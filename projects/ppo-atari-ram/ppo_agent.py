@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from typing import Tuple, Dict
-import numpy as np
 
 
 class PPOAgent:
@@ -107,7 +106,7 @@ class PPOAgent:
         # Normalize advantages
         b_advantages = (b_advantages - b_advantages.mean()) / (b_advantages.std() + 1e-8)
 
-        metrics_sum = {"pg_loss": 0.0, "vf_loss": 0.0, "entropy": 0.0, "clip_frac": 0.0}
+        metrics_sum = {"pg_loss": 0.0, "vf_loss": 0.0, "entropy": 0.0, "clip_frac": 0.0, "approx_kl": 0.0}
         total_updates = 0
 
         for _ in range(self.n_epochs):
@@ -153,6 +152,7 @@ class PPOAgent:
                 metrics_sum["vf_loss"] += vf_loss.item()
                 metrics_sum["entropy"] += entropy_loss.item()
                 metrics_sum["clip_frac"] += clip_frac.item()
+                metrics_sum["approx_kl"] += approx_kl.item()
                 total_updates += 1
 
         n = max(total_updates, 1)
