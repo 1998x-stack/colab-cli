@@ -90,6 +90,7 @@ class MCTSTree:
         policy_logits: np.ndarray,  # from network, raw logits over all actions
         value: float,  # from network, tanh value of root state
         add_dirichlet: bool = True,
+        value_fn: "callable | None" = None,  # (GoBoard, int) → float — network value eval
     ) -> np.ndarray:
         """Run MCTS search from root. Returns visit-count policy π.
 
@@ -98,6 +99,8 @@ class MCTSTree:
             policy_logits: shape (num_actions,) — raw network policy output.
             value: root state value from network.
             add_dirichlet: add Dirichlet noise at root (True for self-play, False for eval).
+            value_fn: if provided, used for leaf evaluation instead of random rollout.
+                      Called as value_fn(board, current_player) → float in [-1, 1].
 
         Returns:
             π: shape (num_actions,) — visit count distribution.
@@ -129,7 +132,7 @@ class MCTSTree:
         # --- simulation loop ---
         for _ in range(self.cfg.num_simulations):
             sim_board = self._copy_board(board)
-            self._simulate(sim_board, self.root)
+            self._simulate(sim_board, self.root, value_fn=value_fn)
 
         # Build π from visit counts
         total_N = sum(self.root.N.values())
@@ -140,8 +143,12 @@ class MCTSTree:
 
         return pi
 
-    def _simulate(self, board: GoBoard, node: MCTSNode):
-        """One MCTS simulation: select → expand → evaluate → backup."""
+    def _simulate(self, board: GoBoard, node: MCTSNode, value_fn: "callable | None" = None):
+        """One MCTS simulation: select → expand → evaluate → backup.
+
+        If value_fn is provided, leaf evaluation uses network value (GPU-fast).
+        Otherwise falls back to random rollout (CPU-slow, for smoke tests only).
+        """
         path: list[tuple[MCTSNode, int]] = []
         cur = node
 
@@ -172,8 +179,10 @@ class MCTSTree:
                 break
 
         # cur is an unexpanded leaf → evaluate
-        # In single-tree mode: random rollout. Batch mode replaces this.
-        v = self._random_rollout(board)
+        if value_fn is not None:
+            v = value_fn(board, board.current_player)
+        else:
+            v = self._random_rollout(board)
         self._backup(path, v)
 
     def _select(self, node: MCTSNode) -> int:

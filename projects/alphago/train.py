@@ -279,6 +279,16 @@ def evaluate(
         dirichlet_epsilon=0.0,  # no noise in eval
     )
 
+    # Build value_fn closures for GPU-accelerated leaf evaluation
+    def make_value_fn(model):
+        def fn(board, current_player):
+            h = encoder.init_history()
+            t = encoder.encode(board, h, current_player)
+            with torch.no_grad():
+                _, v = model(t.to(device))
+            return float(v.item())
+        return fn
+
     wins = 0
     losses = 0
     draws = 0
@@ -290,6 +300,9 @@ def evaluate(
         else:
             black_model, white_model = best_model, current_model
 
+        black_value_fn = make_value_fn(black_model)
+        white_value_fn = make_value_fn(white_model)
+
         board = GoBoard(GameConfig(board_size=cfg.board_size))
         hist_black = encoder.init_history()
         hist_white = encoder.init_history()
@@ -298,14 +311,18 @@ def evaluate(
         for _ in range(cfg.max_moves):
             color = board.current_player
             model_to_use = black_model if color == BLACK else white_model
+            value_fn = black_value_fn if color == BLACK else white_value_fn
             hist = hist_black if color == BLACK else hist_white
 
             # MCTS search (single tree — eval games are sequential)
             tree = MCTSTree(board, mcts_cfg)
             tensor = encoder.encode(board, hist, color)
             with torch.no_grad():
-                logits, _ = model_to_use(tensor.to(device))
-            pi = tree.search(board, logits[0].cpu().numpy(), 0.0, add_dirichlet=False)
+                logits, root_value = model_to_use(tensor.to(device))
+            pi = tree.search(
+                board, logits[0].cpu().numpy(), float(root_value.item()),
+                add_dirichlet=False, value_fn=value_fn,
+            )
 
             move = action_to_move(int(np.argmax(pi)), cfg.board_size)
 
