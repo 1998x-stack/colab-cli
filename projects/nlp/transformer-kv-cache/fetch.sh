@@ -12,9 +12,11 @@ export HTTPS_PROXY=http://127.0.0.1:7890
 export HTTP_PROXY=http://127.0.0.1:7890
 export ALL_PROXY=socks5://127.0.0.1:7890
 
-# Use cc account (xbetterdetermine) — change ACCOUNT to switch
-ACCOUNT="${2:-c}"
-if [ "$ACCOUNT" = "c" ]; then
+# Use clb account (xieminghack) — change ACCOUNT to switch
+ACCOUNT="${2:-clb}"
+if [ "$ACCOUNT" = "clb" ]; then
+    export HOME="$HOME/colab-accounts/account-clb"
+elif [ "$ACCOUNT" = "c" ]; then
     export HOME="$HOME/colab-accounts/account-c"
 fi
 COLB="$(which colab)"
