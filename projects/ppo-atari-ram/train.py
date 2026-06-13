@@ -5,6 +5,7 @@ import sys
 import csv
 import json
 import time
+import subprocess
 import argparse
 from datetime import datetime
 from collections import deque
@@ -290,11 +291,22 @@ for env_idx, env_id in enumerate(args.envs):
             plot_curves(env_id.split("/")[1], history, args.out_dir)
             all_histories[env_id.split("/")[1]] = history
             plot_comparison(all_histories, args.out_dir)
+            # Auto-tar for cron fetch (REST download, no exec needed)
+            subprocess.run(
+                ["tar", "-czf", "/content/ppo-atari-output.tar.gz",
+                 "-C", "/content", "ppo-atari-output"],
+                capture_output=True,
+            )
 
     # ── End of env loop ─────────────────────────────────────────────────
     plot_curves(env_id.split("/")[1], history, args.out_dir)
     all_histories[env_id.split("/")[1]] = history
     plot_comparison(all_histories, args.out_dir)
+    subprocess.run(
+        ["tar", "-czf", "/content/ppo-atari-output.tar.gz",
+         "-C", "/content", "ppo-atari-output"],
+        capture_output=True,
+    )
     envs.close()
     log(f"[DONE {env_id}] best_eval={best_eval:.1f} elapsed={elapsed:.0f}s")
 
