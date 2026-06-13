@@ -5,6 +5,8 @@ select = ["E", "F", "W"]
 ignore = [
     "E402",  # Module-level import not at top: intentional in Colab projects (lazy import for non-pre-installed pkgs)
     "E501",  # Line too long: ML code has long comments, import paths, and tensor shapes
+    "E701",  # One-liner compound statements: compact ML patterns (if x: break)
+    "E702",  # Multiple statements on one line: matplotlib/RL code uses ; for compactness
     "E741",  # Ambiguous variable name: l/O are idiomatic loop/attention vars
 ]
 
