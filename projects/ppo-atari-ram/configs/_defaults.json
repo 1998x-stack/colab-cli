@@ -1,0 +1,19 @@
+{
+  "network": "mlp-medium",
+  "total_timesteps": 500000,
+  "num_envs": 4,
+  "num_steps": 128,
+  "lr": 2.5e-4,
+  "gamma": 0.99,
+  "gae_lambda": 0.95,
+  "clip_coef": 0.1,
+  "ent_coef": 0.01,
+  "vf_coef": 0.5,
+  "max_grad_norm": 0.5,
+  "n_epochs": 4,
+  "n_minibatches": 4,
+  "eval_interval": 10,
+  "eval_episodes": 5,
+  "plot_interval": 5,
+  "seed": 42
+}
