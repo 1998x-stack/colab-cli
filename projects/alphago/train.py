@@ -349,6 +349,10 @@ def evaluate(
         else:
             losses += 1
 
+        if (game_i + 1) % 5 == 0 or game_i == 0:
+            logger.log(f"  Eval game {game_i+1}/{cfg.n_eval_games} | "
+                       f"W{wins} L{losses} D{draws}")
+
     win_rate = wins / cfg.n_eval_games
     result = {
         "wins": wins,
