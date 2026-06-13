@@ -1,5 +1,6 @@
 """Quick test: which models fit on T4 with vLLM 0.10.2."""
-import os, time
+import os
+import time
 os.environ["VLLM_LOGGING_LEVEL"] = "WARNING"
 
 from vllm import LLM, SamplingParams

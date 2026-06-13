@@ -1,5 +1,7 @@
 """Check RAG pipeline progress on Colab VM."""
-import os, json, subprocess
+import os
+import json
+import subprocess
 
 server_log = "/content/vllm_server.log"
 eval_log = "/content/rag_eval.log"

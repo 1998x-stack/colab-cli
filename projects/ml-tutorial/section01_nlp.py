@@ -3,7 +3,9 @@
 Fine-tunes distilbert-base-uncased on a 2000-sample subset, 3 epochs.
 Saves model, metrics, and visualization to <output_dir>/section01_nlp/."""
 
-import json, os, time
+import json
+import os
+import time
 from datetime import datetime
 
 import numpy as np

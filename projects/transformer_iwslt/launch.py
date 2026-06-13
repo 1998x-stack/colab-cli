@@ -4,7 +4,9 @@ Reads /content/exp_id.txt for experiment config.
 Supports --resume flag via /content/resume_path.txt if checkpoint exists.
 Sets HF_TOKEN from /content/hf_token if present.
 """
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 EXP_ID_PATH = "/content/exp_id.txt"
 HF_TOKEN_PATH = "/content/hf_token"
@@ -72,4 +74,4 @@ with open(LOG, "w") as f:
         start_new_session=True, env=env,
     )
 print(f"[launch] Train PID={proc.pid}, log={LOG}")
-print(f"[launch] DONE. Training running detached.")
+print("[launch] DONE. Training running detached.")

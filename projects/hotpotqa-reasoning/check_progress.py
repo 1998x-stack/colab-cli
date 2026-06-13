@@ -3,7 +3,9 @@
 Print heartbeat age, process liveness, and last 20 log lines.
 Overridable via env vars: CHECK_LOG (log path), CHECK_PROC (process name filter).
 """
-import os, json, subprocess, sys, time
+import os
+import subprocess
+import time
 
 LOG = os.environ.get("CHECK_LOG", "/content/run.log")
 PROC = os.environ.get("CHECK_PROC", "run.py")

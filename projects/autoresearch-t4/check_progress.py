@@ -1,6 +1,8 @@
 """Check autoresearch training progress on Colab VM."""
 
-import os, subprocess, json
+import os
+import subprocess
+import json
 
 LOGFILE = "/content/train.log"
 OUTPUT_DIR = "/content/autoresearch-output"

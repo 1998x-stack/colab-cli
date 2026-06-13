@@ -7,7 +7,11 @@ A comparison chart across all experiments is saved at the end.
 
 Logs metrics.jsonl each epoch, saves charts per experiment.
 """
-import os, sys, json, time, subprocess
+import os
+import sys
+import json
+import time
+import subprocess
 from datetime import datetime
 
 # ── GPU compatibility (handle P100 sm_60) ──────────────────────────
@@ -246,7 +250,7 @@ print(f"Total: {total_s:.0f}s")
 print(f"\nOutputs in {BASE_OUT}/")
 for exp in EXPERIMENTS:
     print(f"  {exp['slug']}/  metrics.jsonl  charts.png  best_model.pt")
-print(f"  comparison.png")
+print("  comparison.png")
 
 # Save overall summary
 summary = {exp["slug"]: {"best_acc": exp["best_acc"], "params_m": exp["n_params_m"], "time_s": exp["total_s"], "config": {k: v for k, v in exp.items() if k not in ("best_acc", "total_s", "n_params_m")}} for exp in EXPERIMENTS}

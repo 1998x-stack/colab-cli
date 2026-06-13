@@ -4,7 +4,10 @@ Reads /content/heartbeat.json on VM, checks process health, reports status.
 Intended to be run every 5-7 min via CronCreate.
 """
 
-import json, os, subprocess, sys, time
+import json
+import subprocess
+import sys
+import time
 
 HEARTBEAT_PATH = "/content/heartbeat.json"
 

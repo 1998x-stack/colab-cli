@@ -1,5 +1,7 @@
 """Fire-and-forget bootstrap: spawn launch.py detached, return immediately."""
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 logfile = "/content/run.log"
 env = os.environ.copy()

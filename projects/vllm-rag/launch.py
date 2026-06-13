@@ -3,7 +3,8 @@
 Spawns bootstrap.py as a detached subprocess that handles
 pip install + server start + eval run. Returns immediately.
 """
-import subprocess, sys, os
+import subprocess
+import sys
 
 print("[launch] Spawning bootstrap...")
 logfile = "/content/bootstrap.log"

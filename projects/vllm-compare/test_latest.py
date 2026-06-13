@@ -1,5 +1,7 @@
 """Test latest vLLM on T4 Colab."""
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 # Install latest vLLM
 print("Installing latest vLLM...")
@@ -14,7 +16,9 @@ if result.returncode != 0:
     print("STDERR:", result.stderr[-1000:])
     sys.exit(1)
 
-import vllm, torch, transformers
+import vllm
+import torch
+import transformers
 print(f"vLLM: {vllm.__version__}")
 print(f"torch: {torch.__version__}")
 print(f"transformers: {transformers.__version__}")
@@ -24,7 +28,7 @@ print(f"GPU: {torch.cuda.get_device_name(0)}, VRAM: {torch.cuda.get_device_prope
 try:
     import torchvision
     print(f"torchvision: {torchvision.__version__}")
-except:
+except Exception:
     print("torchvision missing, installing...")
     subprocess.run(
         [sys.executable, "-m", "pip", "install", "-q", "torchvision", "Pillow",

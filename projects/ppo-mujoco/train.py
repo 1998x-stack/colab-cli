@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """PPO on MuJoCo — CleanRL-style training loop with pluggable components."""
-import os, sys, csv, json, time, subprocess, argparse
+import os
+import csv
+import json
+import time
+import subprocess
+import argparse
 from datetime import datetime
 from collections import deque
 import numpy as np
@@ -208,7 +213,7 @@ for env_idx, env_id in enumerate(args.envs):
                 torch.save({"model": agent.net.state_dict(), "iteration": iteration,
                             "eval_reward": eval_mean},
                            f"{args.out_dir}/checkpoints/{env_id}_best.pt")
-                log(f"  -> new best!")
+                log("  -> new best!")
 
         if iteration % cfg["plot_interval"] == 0:
             plot_curves(env_id, history, args.out_dir)

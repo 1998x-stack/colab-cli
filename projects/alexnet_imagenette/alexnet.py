@@ -14,7 +14,7 @@ import torch.nn as nn
 class AlexNet(nn.Module):
     def __init__(self, num_classes=10, width_mult=1.0, dropout=0.5):
         super().__init__()
-        w = lambda c: max(1, int(c * width_mult))
+        def w(c): return max(1, int(c * width_mult))
 
         self.conv1 = nn.Conv2d(3, w(96), kernel_size=11, stride=4, padding=2)
         self.pool1 = nn.MaxPool2d(kernel_size=3, stride=2)

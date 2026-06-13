@@ -1,5 +1,7 @@
 """Check vLLM comparison benchmark progress on Colab VM."""
-import os, json, subprocess
+import os
+import json
+import subprocess
 
 logfile = "/content/vllm_compare.log"
 results_file = "/content/results.json"

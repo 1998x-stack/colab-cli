@@ -1,5 +1,7 @@
 """vLLM 0.10.2 on T4 with monkey-patch for all_special_tokens_extended."""
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 # Install vLLM 0.10.2 with cu128
 print("Installing vLLM 0.10.2...")

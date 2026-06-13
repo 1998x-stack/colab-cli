@@ -1,5 +1,7 @@
 """Quick test: which models fit on T4 with vLLM 0.10.2."""
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 # Upgrade transformers for tokenizer compat
 print("Upgrading transformers...")

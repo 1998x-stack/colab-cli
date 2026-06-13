@@ -2,7 +2,9 @@
 
 Reads /content/metrics.jsonl on VM, reports status, flags alerts.
 """
-import json, os, subprocess, sys
+import json
+import subprocess
+import sys
 
 
 METRICS_PATH = "/content/metrics.jsonl"

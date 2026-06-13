@@ -3,7 +3,9 @@
 Pip install + spawn server + spawn eval, all in one detached process.
 Colab exec WebSocket can disconnect without killing work.
 """
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 logfile = "/content/bootstrap.log"
 with open(logfile, "w") as log:

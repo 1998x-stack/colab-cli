@@ -4,7 +4,8 @@ Reports: process status, latest log lines, checkpoint files, and latest metrics.
 Run via: colab exec -f check_progress.py --timeout 30
 """
 
-import os, subprocess
+import os
+import subprocess
 
 LOGFILE = "/content/dqn_train.log"
 OUTPUT_DIR = "/content/dqn-output"
@@ -44,7 +45,7 @@ if os.path.exists(OUTPUT_DIR):
     if os.path.exists(metrics_path):
         import json
         m = json.load(open(metrics_path))
-        print(f"\n── Metrics ──")
+        print("\n── Metrics ──")
         print(f"  Best return: {m.get('best_return', '?')}")
         print(f"  Total episodes: {m.get('total_episodes', '?')}")
         print(f"  Total steps: {m.get('total_steps', '?')}")

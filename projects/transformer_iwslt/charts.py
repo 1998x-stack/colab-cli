@@ -5,7 +5,8 @@ produces 5 charts + results_summary.md.
 
 Usage: python charts.py  (run locally after all experiments complete)
 """
-import json, os
+import json
+import os
 from pathlib import Path
 
 import matplotlib
@@ -122,7 +123,6 @@ def main():
     print("Saved attention_heads.png (placeholder)")
 
     # --- 5. Positional encoding comparison ---
-    import torch
     from model import sinusoidal_pe
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))

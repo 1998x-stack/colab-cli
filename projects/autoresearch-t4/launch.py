@@ -4,7 +4,9 @@ Step 1: Install deps + run prepare.py (download TinyStories, train tokenizer)
 Step 2: Run train.py (5-min GPT training with MuonAdamW)
 """
 
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 print("[launch] Installing Python dependencies...")
 subprocess.check_call([

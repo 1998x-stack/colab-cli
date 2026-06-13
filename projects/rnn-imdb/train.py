@@ -1,6 +1,8 @@
 """LSTM sentiment classifier on IMDB — fetches data, trains, logs metrics, visualizes."""
 
-import json, os, sys, time
+import json
+import os
+import time
 from collections import Counter
 from datetime import datetime
 

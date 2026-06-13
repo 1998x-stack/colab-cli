@@ -1,5 +1,8 @@
 """Checkpoint save/load helpers for training resume across Colab sessions."""
-import io, gzip, torch, os
+import io
+import gzip
+import torch
+import os
 
 
 def save_checkpoint(

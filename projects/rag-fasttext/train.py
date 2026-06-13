@@ -18,7 +18,6 @@ from datetime import datetime
 from collections import defaultdict
 
 import numpy as np
-import scipy.sparse as sp
 from sklearn.feature_extraction.text import CountVectorizer
 import fasttext
 import faiss
@@ -205,7 +204,7 @@ def bm25_search(query_text, k=100):
 
 
 # ── FAISS Index ──────────────────────────────────────────────────────────────
-log(f"Building FAISS index (IndexFlatIP for cosine similarity) ...")
+log("Building FAISS index (IndexFlatIP for cosine similarity) ...")
 t0 = time.time()
 
 # L2-normalize for cosine similarity via inner product
@@ -508,7 +507,7 @@ log(f"FastText model saved: {args.out_dir}/checkpoints/fasttext_model.bin")
 
 log("Done.")
 log(f"Output: {args.out_dir}/")
-log(f"  logs/train.log  -- full training log")
-log(f"  metrics.csv     -- evaluation metrics")
-log(f"  pngs/retrieval_comparison.png  -- comparison figure")
-log(f"  index_info.json -- index metadata")
+log("  logs/train.log  -- full training log")
+log("  metrics.csv     -- evaluation metrics")
+log("  pngs/retrieval_comparison.png  -- comparison figure")
+log("  index_info.json -- index metadata")

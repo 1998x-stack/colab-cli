@@ -4,7 +4,9 @@ Installs dependencies, then spawns tutorial.py as a detached subprocess
 so it survives after colab exec returns.
 """
 
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 DEPS = [
     "transformers", "evaluate", "accelerate",

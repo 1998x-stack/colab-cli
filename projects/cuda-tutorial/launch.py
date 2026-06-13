@@ -1,4 +1,6 @@
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 subprocess.check_call([sys.executable, "-m", "pip", "install", "numba", "numpy", "scipy", "-q"])
 

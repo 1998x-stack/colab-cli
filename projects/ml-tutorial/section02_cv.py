@@ -3,7 +3,9 @@
 Fine-tunes google/vit-base-patch16-224 on 5 food classes, 250 samples each.
 Saves model, metrics, and prediction grid to <output_dir>/section02_cv/."""
 
-import json, os, time
+import json
+import os
+import time
 from datetime import datetime
 
 import numpy as np
@@ -18,7 +20,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
-from PIL import Image
 import torch
 
 

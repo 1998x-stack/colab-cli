@@ -33,7 +33,8 @@ try:
     print(f"[OK] numba.cuda ready — {get_device_name()}")
 except Exception:
     print("Installing numba...")
-    import subprocess, sys
+    import subprocess
+    import sys
     subprocess.check_call([sys.executable, "-m", "pip", "install", "numba", "-q"])
     from numba import cuda
     cuda.select_device(0)
@@ -116,7 +117,7 @@ def section_1():
     cpu_ms = time_cpu(cpu_add)
     bw_gpu = (N * 4 * 3) / (gpu_ms / 1000) / 1e9  # 3 arrays * 4 bytes
     print(f"  GPU: {gpu_ms:.3f} ms  |  CPU: {cpu_ms:.3f} ms  |  BW: {bw_gpu:.1f} GB/s")
-    print(f"  Key: grid layout, cuda.grid(1), boundary guard (i < n)")
+    print("  Key: grid layout, cuda.grid(1), boundary guard (i < n)")
 
 # ===================================================================
 # SECTION 2: Vector Dot Product — atomicAdd
@@ -160,7 +161,7 @@ def section_2():
     cpu_ref = np.dot(a, b)
     check("dot (N=20M)", np.array([cpu_ref]), out)
     print(f"  GPU result: {out[0]:.6f}  |  CPU result: {cpu_ref:.6f}")
-    print(f"  Key: grid-stride loop, atomicAdd for final reduction")
+    print("  Key: grid-stride loop, atomicAdd for final reduction")
 
 # ===================================================================
 # SECTION 3: Matrix Multiply (Naive) — 2D grids, coalescing failure
@@ -205,7 +206,7 @@ def section_3():
         _ = a @ b
     cpu_ms = time_cpu(cpu_mm)
     print(f"  GPU: {gpu_ms:.3f} ms  |  CPU (numpy): {cpu_ms:.3f} ms  |  speedup: {cpu_ms/gpu_ms:.1f}x")
-    print(f"  Key: 2D grid layout, uncoalesced global reads (B column access)")
+    print("  Key: 2D grid layout, uncoalesced global reads (B column access)")
 
 # ===================================================================
 # SECTION 4: Matrix Multiply (Tiled) — shared memory
@@ -292,7 +293,7 @@ def section_4():
 
     print(f"  512×512 naive: {naive_ms:.3f} ms  |  tiled: {tiled_ms:.3f} ms  |  speedup: {naive_ms/tiled_ms:.1f}x")
     print(f"  1024×1024 tiled GPU: {gpu_ms:.3f} ms")
-    print(f"  Key: shared memory, cooperative tile load, __syncthreads()")
+    print("  Key: shared memory, cooperative tile load, __syncthreads()")
 
 # ===================================================================
 # SECTION 5: Parallel Reduction — warp shuffle
@@ -371,7 +372,7 @@ def section_5():
     cpu_ms = time_cpu(cpu_sum)
     print(f"  GPU: {gpu_ms:.3f} ms  |  CPU: {cpu_ms:.3f} ms  |  speedup: {cpu_ms/gpu_ms:.1f}x")
     print(f"  GPU result: {out[0]:.6f}  |  CPU (float32): {cpu_ref:.6f}")
-    print(f"  Key: tree reduction, shared memory block reduction, device arrays")
+    print("  Key: tree reduction, shared memory block reduction, device arrays")
 
 # ===================================================================
 # SECTION 6: 2D Convolution — constant memory & halo regions
@@ -442,7 +443,7 @@ def section_6():
 
     check("conv2d (1024x1024, 5x5 filter)", cpu_out, out)
     print(f"  GPU: {gpu_ms:.3f} ms")
-    print(f"  Key: 2D thread grid, edge clamping, filter reuse across threads")
+    print("  Key: 2D thread grid, edge clamping, filter reuse across threads")
 
 # ===================================================================
 # SECTION 7: Flash Attention Lite — online softmax & tiling
@@ -480,7 +481,7 @@ def online_softmax_kernel(Q, K, V, O, seq_len, d_head, sm_scale):
         acc[d] = 0.0
 
     # Shared denominator accumulator for the tile (reset per tile)
-    p_sum = cuda.shared.array(TILE_KV, dtype=np.float32)
+    p_sum = cuda.shared.array(TILE_KV, dtype=np.float32)  # noqa: F841
 
     # Tile over keys/values
     for tile_start in range(0, seq_len, TILE_KV):
@@ -596,7 +597,7 @@ def section_7():
     print(f"  GPU: {gpu_ms:.3f} ms")
     print(f"  O(N²) attention matrix: {n2_mem:.0f} KB  |  O(N·d) state: {nd_mem:.0f} KB")
     print(f"  Memory saved: {n2_mem - nd_mem:.0f} KB ({n2_mem/nd_mem:.0f}x)")
-    print(f"  Key: online softmax, tiled K/V loop, warp-shuffle max, O(N²)→O(N·d) memory")
+    print("  Key: online softmax, tiled K/V loop, warp-shuffle max, O(N²)→O(N·d) memory")
 
 # ===================================================================
 # MAIN

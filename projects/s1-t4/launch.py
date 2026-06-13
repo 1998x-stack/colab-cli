@@ -4,7 +4,10 @@ as detached subprocess. Survives after colab exec disconnects.
 Reads /content/hf_token for Hugging Face authentication.
 """
 
-import subprocess, sys, os, shutil
+import subprocess
+import sys
+import os
+import shutil
 
 HF_TOKEN_PATH = "/content/hf_token"
 LOG_DIR = "/content/s1-t4/logs"
@@ -60,5 +63,5 @@ with open(log_path, "w") as f:
     )
 print(f"[launch] Train PID={proc.pid}, log={log_path}")
 print(f"[launch] Checkpoints: {CHECKPOINT_DIR}")
-print(f"[launch] DONE. Training running detached.")
-print(f"[launch] Monitor: colab exec -s <session> -f /content/s1-t4/check_progress.py")
+print("[launch] DONE. Training running detached.")
+print("[launch] Monitor: colab exec -s <session> -f /content/s1-t4/check_progress.py")

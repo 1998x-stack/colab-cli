@@ -3,7 +3,8 @@ import os
 # Force V0 engine (no multiprocessing) since Colab pre-initializes CUDA
 os.environ["VLLM_USE_V1"] = "0"
 
-import subprocess, sys
+import subprocess
+import sys
 
 print("Installing vLLM 0.10.2...")
 subprocess.run(

@@ -4,7 +4,8 @@ Spawns bootstrap.py as a detached subprocess that handles
 pip install + benchmark execution. Returns immediately so
 the colab exec WebSocket can disconnect without issues.
 """
-import subprocess, sys, os
+import subprocess
+import sys
 
 print("[launch] Spawning bootstrap...")
 logfile = "/content/bootstrap.log"

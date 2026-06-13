@@ -3,7 +3,8 @@
 Serves Qwen2.5-7B-Instruct-AWQ for the RAG client to query.
 Uses the vLLM CLI entrypoint which handles all engine config.
 """
-import subprocess, sys
+import subprocess
+import sys
 
 print("[server] Starting vLLM API server...")
 print("[server] Model: Qwen/Qwen2.5-7B-Instruct-AWQ (AWQ 4-bit)")

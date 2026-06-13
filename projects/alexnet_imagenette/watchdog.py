@@ -2,7 +2,9 @@
 Exits when /content/watchdog_stop exists (train.py creates this on completion).
 """
 
-import json, os, time
+import json
+import os
+import time
 
 HEARTBEAT_PATH = "/content/heartbeat.json"
 STOP_PATH = "/content/watchdog_stop"

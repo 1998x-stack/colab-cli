@@ -5,7 +5,9 @@ Standard DQN ingredients: experience replay, target network, epsilon-greedy.
 Saves checkpoints, metrics, and evaluation video to <output_dir>/.
 """
 
-import json, os, time
+import json
+import os
+import time
 from collections import deque
 from datetime import datetime
 
@@ -55,7 +57,7 @@ class FrameProcessor:
     """Convert (210, 160, 3) RGB → (84, 84) grayscale, normalize to [0,1]."""
 
     def __init__(self):
-        import cv2
+        pass
 
     @staticmethod
     def process(frame):

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Launch DDPG training as a detached subprocess on Colab VM."""
-import subprocess, sys, os, time
+import subprocess
+import sys
+import os
+import time
 
 DEPS = ["gymnasium", "matplotlib"]
 SCRIPT = "train.py"
@@ -30,7 +33,7 @@ with open(LOG, "w") as f:
 
 print(f"OK. PID={proc.pid}  log={LOG}")
 print(f"Check: tail -f {LOG}")
-print(f"Output dir: /content/ddpg-output/")
+print("Output dir: /content/ddpg-output/")
 
 # Wait a moment to confirm the process is still alive
 time.sleep(3)

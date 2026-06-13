@@ -1,7 +1,6 @@
 """Orchestrator: load data → CoT → ReAct → metrics → charts → tar results."""
 import json
 import os
-import sys
 import time
 import logging
 
@@ -117,7 +116,8 @@ def main() -> None:
 
     # ── Cleanup ──
     del llm
-    import gc, torch
+    import gc
+    import torch
     gc.collect()
     torch.cuda.empty_cache()
 

@@ -7,7 +7,11 @@ Each section is a self-contained module with a run(output_dir) -> metrics dict.
 The orchestrator runs all three, collects metrics, and writes a summary report.
 """
 
-import json, os, sys, time, subprocess
+import json
+import os
+import sys
+import time
+import subprocess
 from datetime import datetime
 
 OUTPUT_DIR = "/content/tutorial-output"
@@ -112,7 +116,7 @@ def main():
     print(f"\n  NLP    accuracy: {metrics_nlp['test_accuracy']:.4f}  ({metrics_nlp['train_time_seconds']:.0f}s)")
     print(f"  CV     accuracy: {metrics_cv['test_accuracy']:.4f}  ({metrics_cv['train_time_seconds']:.0f}s)")
     print(f"  Audio  accuracy: {metrics_audio['test_accuracy']:.4f}  ({metrics_audio['train_time_seconds']:.0f}s)")
-    print(f"  ─────────────────────────────────────")
+    print("  ─────────────────────────────────────")
     print(f"  Average accuracy: {summary['overall']['average_accuracy']:.4f}")
     print(f"  Total time: {total_time/60:.1f}m")
     print(f"\nResults saved to: {output_dir}/")

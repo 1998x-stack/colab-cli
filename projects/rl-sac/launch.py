@@ -1,5 +1,7 @@
 """Launch sac_mountaincar.py via nohup on Colab VM."""
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 # Install deps
 subprocess.check_call([sys.executable, "-m", "pip", "install", "gymnasium", "-q"])

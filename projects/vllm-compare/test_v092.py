@@ -1,5 +1,7 @@
 """Test vLLM 0.9.2 on T4 Colab - might avoid transformers 5.x bug."""
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 print("Installing vLLM 0.9.2...")
 result = subprocess.run(
@@ -20,7 +22,9 @@ if result.returncode != 0:
     )
     print(f"pip cu124 rc={result.returncode}")
 
-import vllm, torch, transformers
+import vllm
+import torch
+import transformers
 print(f"vLLM: {vllm.__version__}")
 print(f"torch: {torch.__version__}")
 print(f"transformers: {transformers.__version__}")

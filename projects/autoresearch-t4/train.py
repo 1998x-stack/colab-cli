@@ -8,7 +8,9 @@ import os
 os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
-import gc, math, time
+import gc
+import math
+import time
 from dataclasses import dataclass, asdict
 
 import torch
@@ -383,7 +385,7 @@ def main():
     for key, value in param_counts.items():
         print(f"  {key:24s}: {value:,}")
     num_params = param_counts["total"]
-    num_flops_per_token = model.estimate_flops()
+    model.estimate_flops()  # warmup
 
     tokens_per_fwdbwd = DEVICE_BATCH_SIZE * MAX_SEQ_LEN
     grad_accum_steps = TOTAL_BATCH_SIZE // tokens_per_fwdbwd
@@ -405,7 +407,7 @@ def main():
     gc.freeze()
     gc.disable()
 
-    t_start_training = time.time()
+    time.time()  # snapshot for reference
     smooth_train_loss = 0
     total_training_time = 0
     step = 0

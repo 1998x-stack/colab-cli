@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """DDPG on Gymnasium continuous-control envs. GPU-accelerated, plot + log + metrics output."""
 
-import os, sys, json, time, signal, argparse
+import os
+import sys
+import json
+import signal
+import argparse
 from datetime import datetime
 from collections import deque
 
@@ -343,7 +347,7 @@ for episode in range(1, args.episodes + 1):
             torch.save({"actor": actor.state_dict(), "critic": critic.state_dict(),
                         "episode": episode, "mean_reward": mean_r},
                        f"{args.out_dir}/best_model.pt")
-            log_print(f"  -> new best! saved best_model.pt")
+            log_print("  -> new best! saved best_model.pt")
 
     # Checkpoint
     if episode % args.ckpt_interval == 0:
@@ -353,7 +357,7 @@ for episode in range(1, args.episodes + 1):
                    f"{args.out_dir}/ckpt_ep{episode}.pt")
         save_metrics()
         plot_progress()
-        log_print(f"  -> ckpt + metrics + plot saved")
+        log_print("  -> ckpt + metrics + plot saved")
 
 # ── final save ──────────────────────────────────────────────────────────────
 save_metrics()
@@ -364,4 +368,4 @@ torch.save({"actor": actor.state_dict(), "critic": critic.state_dict(),
            f"{args.out_dir}/final_model.pt")
 log_print(f"\n=== DONE | best_eval={best_eval:.2f} | total_steps={step} | {datetime.now()} ===")
 log_print(f"Output: {args.out_dir}/")
-log_print(f"  train.log  metrics.json  best_model.pt  final_model.pt  plots/progress.png")
+log_print("  train.log  metrics.json  best_model.pt  final_model.pt  plots/progress.png")

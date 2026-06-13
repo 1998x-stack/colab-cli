@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """PPO on Atari RAM — CleanRL-style training loop with pluggable components."""
 import os
-import sys
 import csv
 import json
 import time
@@ -133,7 +132,6 @@ def plot_comparison(all_env_histories, out_dir):
 # ── Eval ─────────────────────────────────────────────────────────────────
 @torch.no_grad()
 def evaluate(agent, env_id, n_episodes=5):
-    import ale_py  # registers ALE namespace
     import gymnasium as gym
     eval_env = gym.make(env_id, max_episode_steps=108000, obs_type="ram")
     rewards = []
@@ -284,7 +282,7 @@ for env_idx, env_id in enumerate(args.envs):
                     "iteration": iteration,
                     "eval_reward": eval_mean,
                 }, f"{args.out_dir}/checkpoints/{env_id.replace('/', '_')}_best.pt")
-                log(f"  -> new best! saved checkpoint")
+                log("  -> new best! saved checkpoint")
 
         # ── Plot ────────────────────────────────────────────────────────
         if iteration % cfg["plot_interval"] == 0:

@@ -4,8 +4,13 @@ Usage:
     python train.py --exp_id baseline
     python train.py --exp_id baseline --resume /content/checkpoints/ckpt_epoch5.pt
 """
-import argparse, json, math, os, sys, time, urllib.request, zipfile
-from pathlib import Path
+import argparse
+import json
+import os
+import sys
+import time
+import urllib.request
+import zipfile
 
 import torch
 import torch.nn as nn
@@ -51,7 +56,7 @@ def load_iwslt_pairs(data_dir: str) -> list[tuple[str, str]]:
 
     if not os.path.exists(de_path) or not os.path.exists(en_path):
         if not os.path.exists(zip_path):
-            print(f"[data] Downloading IWSLT ZIP (~18MB)...")
+            print("[data] Downloading IWSLT ZIP (~18MB)...")
             for attempt in range(3):
                 try:
                     urllib.request.urlretrieve(IWSLT_ZIP_URL, zip_path)

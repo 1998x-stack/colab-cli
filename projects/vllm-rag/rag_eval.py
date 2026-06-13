@@ -6,8 +6,11 @@ retrieval + generation quality metrics.
 
 vLLM server must be running on http://localhost:8000 before this script.
 """
-import json, os, sys, time, logging
-from collections import Counter
+import json
+import os
+import sys
+import time
+import logging
 
 import requests
 import torch
@@ -92,7 +95,7 @@ def load_squad() -> tuple[list[str], list[dict]]:
     return passages, questions
 
 
-def build_index(passages: list[str]) -> "chromadb.Collection":
+def build_index(passages: list[str]) -> "chromadb.Collection":  # noqa: F821
     """Embed passages with sentence-transformers and index in ChromaDB."""
     log(f"Building ChromaDB index with {len(passages)} passages...")
     import chromadb
@@ -248,7 +251,6 @@ def run_eval(passages: list[str], questions: list[dict]) -> tuple[list[dict], di
         except Exception as exc:
             log(f"  [{i+1}/{len(questions)}] ERROR: {exc}")
             answer = ""
-            gen_time = 0.0
 
         # Score
         em = any(answer_in_text(a, answer) for a in q["answers"]) if answer else False
@@ -311,16 +313,16 @@ def main() -> None:
     gm = metrics["generation_metrics"]
     sm = metrics["system_metrics"]
 
-    print(f"\n── Retrieval ──")
+    print("\n── Retrieval ──")
     print(f"  Recall@1:  {rm['recall_at_1']:.3f}")
     print(f"  Recall@3:  {rm['recall_at_3']:.3f}")
     print(f"  MRR:       {rm['mrr']:.3f}")
 
-    print(f"\n── Generation ──")
+    print("\n── Generation ──")
     print(f"  Exact Match:  {gm['exact_match']:.3f}")
     print(f"  Token F1:     {gm['token_f1_avg']:.3f}")
 
-    print(f"\n── System ──")
+    print("\n── System ──")
     print(f"  Avg latency:  {sm['avg_latency_s']:.2f} s/query")
     print(f"  Total time:   {sm['total_time_s']:.0f} s")
     print(f"  Peak VRAM:    {sm['peak_vram_gb']:.2f} GB")

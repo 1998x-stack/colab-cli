@@ -1,13 +1,15 @@
 """CNN image classifier on CIFAR-10 — fetches data, trains, logs metrics, visualizes."""
 
-import json, os, time
+import json
+import os
+import time
 from datetime import datetime
 
 import torch
 import torch.nn as nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as T
 from datasets import load_dataset
 

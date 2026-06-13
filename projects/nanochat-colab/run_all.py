@@ -7,7 +7,13 @@ Everything runs inline so the VM stays alive until completion.
 Estimated total time: ~15 minutes (setup ~3min + training ~10min + plots ~1min)
 """
 
-import subprocess, sys, os, time, shutil, re, tarfile
+import subprocess
+import sys
+import os
+import time
+import shutil
+import re
+import tarfile
 
 NANOCHAT_DIR = "/content/nanochat"
 LOG_FILE = "/content/train.log"
@@ -177,7 +183,7 @@ else:
         "── nanochat d=6 on T4 ──", "",
         f"Steps: {steps[-1]}", f"Total time: {total_time_m:.1f}m" if total_time_m else "",
         f"Peak VRAM: {peak_mem:.0f} MiB" if peak_mem else "",
-        f"", f"Final loss: {losses[-1]:.4f}",
+        "", f"Final loss: {losses[-1]:.4f}",
         f"Min val BPB: {min_val_bpb:.4f}" if min_val_bpb else "",
         f"Avg tok/sec: {sum(tok_per_sec)//len(tok_per_sec):,}",
         f"Final tok/sec: {tok_per_sec[-1]:,}",

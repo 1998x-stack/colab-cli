@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Launch PPO MuJoCo training as detached subprocess on Colab VM."""
-import subprocess, sys, os, time
+import subprocess
+import sys
+import os
+import time
 
 DEPS = ["gymnasium[mujoco]", "matplotlib"]
 SCRIPT = "train.py"

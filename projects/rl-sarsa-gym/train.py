@@ -4,7 +4,6 @@ Generates PNGs, CSV metrics, and logs to /content/rl-sarsa-output/.
 """
 
 import os
-import sys
 import csv
 import time
 import json

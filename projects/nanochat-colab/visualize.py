@@ -8,7 +8,11 @@ Outputs:
   /content/nanochat-output.tar.gz  — all artifacts for download
 """
 
-import os, sys, re, subprocess, tarfile, json, time
+import os
+import sys
+import re
+import subprocess
+import tarfile
 
 LOG_FILE = "/content/train.log"
 PLOTS_DIR = "/content/plots"
@@ -217,14 +221,14 @@ ax_tok.grid(True, alpha=0.3)
 info_lines = [
     "── nanochat T4 Run ──",
     "",
-    f"Model: d=6, head-dim=64",
-    f"Seq len: 256",
-    f"Batch size: 1",
-    f"",
+    "Model: d=6, head-dim=64",
+    "Seq len: 256",
+    "Batch size: 1",
+    "",
     f"Steps: {steps[-1]}",
     f"Total time: {total_time:.1f}m" if total_time else "",
     f"Peak VRAM: {peak_mem:.0f} MiB" if peak_mem else "",
-    f"",
+    "",
     f"Final loss: {losses[-1]:.4f}",
     f"Min val BPB: {min_val_bpb:.4f}" if min_val_bpb else "",
     f"Final tok/sec: {tok_per_sec[-1]:,}",
@@ -252,7 +256,7 @@ with tarfile.open(OUTPUT_TAR, "w:gz") as tar:
         print(f"  + plots/{fn}")
     # log
     tar.add(LOG_FILE, arcname="train.log")
-    print(f"  + train.log")
+    print("  + train.log")
 
     # checkpoints (if any)
     ckpt_dir = os.path.join(BASE_DIR, "base_checkpoints", "d6")
@@ -260,7 +264,7 @@ with tarfile.open(OUTPUT_TAR, "w:gz") as tar:
         for item in sorted(os.listdir(ckpt_dir)):
             path = os.path.join(ckpt_dir, item)
             tar.add(path, arcname=f"checkpoints/d6/{item}")
-        print(f"  + checkpoints/d6/")
+        print("  + checkpoints/d6/")
 
     # tokenizer
     tok_dir = os.path.join(BASE_DIR, "tokenizer")
@@ -268,7 +272,7 @@ with tarfile.open(OUTPUT_TAR, "w:gz") as tar:
         for item in sorted(os.listdir(tok_dir)):
             path = os.path.join(tok_dir, item)
             tar.add(path, arcname=f"tokenizer/{item}")
-        print(f"  + tokenizer/")
+        print("  + tokenizer/")
 
 size_mb = os.path.getsize(OUTPUT_TAR) / (1024 * 1024)
 print(f"\n[visualize] Done: {OUTPUT_TAR} ({size_mb:.1f} MB)")

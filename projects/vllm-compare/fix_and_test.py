@@ -1,5 +1,7 @@
 """Fix transformers compat + test which models fit on T4."""
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 # vLLM 0.10.2 needs transformers <5.0 — the 'all_special_tokens_extended' attr
 # was removed in 5.x. Downgrade to latest 4.x.

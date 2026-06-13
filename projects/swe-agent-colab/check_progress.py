@@ -3,7 +3,6 @@
 
 import json
 import os
-import sys
 import time
 
 
@@ -42,7 +41,7 @@ def check():
     if os.path.exists(metrics_path):
         with open(metrics_path) as f:
             metrics = json.load(f)
-        print(f"\n=== RESULTS ===")
+        print("\n=== RESULTS ===")
         print(json.dumps(metrics, indent=2))
     else:
         print("\nNo metrics.json yet — agent still running.")

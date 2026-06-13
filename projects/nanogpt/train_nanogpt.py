@@ -2,7 +2,13 @@
 Self-contained nanoGPT training script for Colab GPU.
 Downloads Tiny Shakespeare, trains a character-level GPT, generates loss plots + sample text.
 """
-import os, sys, time, math, json, pickle, requests, inspect
+import os
+import time
+import math
+import json
+import pickle
+import requests
+import inspect
 import numpy as np
 import torch
 import torch.nn as nn

@@ -1,5 +1,7 @@
 """Launch nanoGPT training on Colab VM via detached subprocess."""
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 # Install deps
 subprocess.check_call([sys.executable, "-m", "pip", "install", "torch", "numpy", "requests", "matplotlib", "-q"])

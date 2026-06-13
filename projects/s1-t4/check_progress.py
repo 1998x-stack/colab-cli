@@ -9,7 +9,11 @@ Usage (dry-run):
     check_progress.main()
 """
 
-import json, os, sys, time, glob
+import json
+import os
+import sys
+import time
+import glob
 
 # Base directory on the VM — override for dry-run testing
 VM_DIR = "/content/s1-t4"
@@ -53,7 +57,7 @@ def main() -> int:
             print(f"[check] Train log tail ({len(lines)} lines total):")
             print(tail)
     except FileNotFoundError:
-        print(f"[check] (train.log not found)")
+        print("[check] (train.log not found)")
 
     # 3. Tail eval.log (last 10 lines, if exists)
     eval_log = os.path.join(log_dir, "eval.log")
@@ -78,7 +82,7 @@ def main() -> int:
         if other:
             print(f"[check]   + {len(other)} files: {[os.path.basename(c) for c in other]}")
     else:
-        print(f"[check] Checkpoints: none yet")
+        print("[check] Checkpoints: none yet")
 
     # 5. List results
     results = sorted(glob.glob(os.path.join(results_dir, "*")))
@@ -92,7 +96,7 @@ def main() -> int:
             else:
                 print(f"    {label}")
     else:
-        print(f"[check] Results: none yet")
+        print("[check] Results: none yet")
 
     return 0
 

@@ -33,7 +33,7 @@ with open(LOG, "w") as f:
     )
 
 print(f"OK. PID={proc.pid}  log={LOG}")
-print(f"Output dir: /content/ppo-atari-output/")
+print("Output dir: /content/ppo-atari-output/")
 
 time.sleep(3)
 try:

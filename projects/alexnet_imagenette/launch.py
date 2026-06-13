@@ -4,7 +4,9 @@ detached subprocesses. Survives after colab exec disconnects.
 Reads /content/exp_ids.txt to know which experiments to run.
 """
 
-import subprocess, sys, os, time
+import subprocess
+import sys
+import os
 
 EXP_IDS_PATH = "/content/exp_ids.txt"
 HF_TOKEN_PATH = "/content/hf_token"
@@ -56,4 +58,4 @@ with open(LOG, "w") as f:
         start_new_session=True, env=env,
     )
 print(f"[launch] Train PID={train.pid}, log={LOG}")
-print(f"[launch] DONE. Training running detached.")
+print("[launch] DONE. Training running detached.")

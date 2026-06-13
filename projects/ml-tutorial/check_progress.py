@@ -3,7 +3,8 @@
 Reports: process status, latest log lines, and output directory contents.
 """
 
-import os, subprocess
+import os
+import subprocess
 
 LOGFILE = "/content/tutorial.log"
 OUTPUT_DIR = "/content/tutorial-output"
@@ -49,10 +50,10 @@ if os.path.exists(summary_path):
     import json
     s = json.load(open(summary_path))
     overall = s.get("overall", {})
-    print(f"\n── Summary ──")
-    print(f"  NLP accuracy:    {overall.get('nlp_accuracy', '?'):.4f}" if isinstance(overall.get('nlp_accuracy'), float) else f"  NLP:    pending")
-    print(f"  CV accuracy:     {overall.get('cv_accuracy', '?'):.4f}" if isinstance(overall.get('cv_accuracy'), float) else f"  CV:     pending")
-    print(f"  Audio accuracy:  {overall.get('audio_accuracy', '?'):.4f}" if isinstance(overall.get('audio_accuracy'), float) else f"  Audio:  pending")
+    print("\n── Summary ──")
+    print(f"  NLP accuracy:    {overall.get('nlp_accuracy', '?'):.4f}" if isinstance(overall.get('nlp_accuracy'), float) else "  NLP:    pending")
+    print(f"  CV accuracy:     {overall.get('cv_accuracy', '?'):.4f}" if isinstance(overall.get('cv_accuracy'), float) else "  CV:     pending")
+    print(f"  Audio accuracy:  {overall.get('audio_accuracy', '?'):.4f}" if isinstance(overall.get('audio_accuracy'), float) else "  Audio:  pending")
     if overall.get("average_accuracy"):
         print(f"  Average:         {overall['average_accuracy']:.4f}")
     if overall.get("total_train_time_minutes"):

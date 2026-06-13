@@ -4,13 +4,17 @@
 Usage (on Colab VM): python -u train.py --exp_ids 1,2
 """
 
-import json, os, sys, time, argparse, tarfile, urllib.request
+import json
+import os
+import time
+import argparse
+import tarfile
+import urllib.request
 from datetime import datetime
 
-import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset, Subset, random_split
+from torch.utils.data import DataLoader, Dataset, random_split
 import torchvision.transforms.functional as TF
 from torchvision.transforms import RandomCrop
 from torchvision.datasets import ImageFolder

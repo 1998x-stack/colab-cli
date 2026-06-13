@@ -3,7 +3,8 @@
 Run via: cb exec -f check_progress.py --timeout 15
 """
 
-import os, subprocess, sys, json
+import os
+import subprocess
 
 LOG_FILE = "/content/train.log"
 BASE_DIR = "/content/nanochat-data"

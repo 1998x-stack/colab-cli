@@ -6,7 +6,6 @@ ale-py dependency at training time.
 """
 import json
 import os
-import sys
 
 
 def known_atari_games():
@@ -87,10 +86,6 @@ def known_atari_games():
 def main():
     config_dir = os.path.join(os.path.dirname(__file__), "configs")
     os.makedirs(config_dir, exist_ok=True)
-
-    # Load defaults to get solved thresholds
-    with open(os.path.join(config_dir, "_defaults.json")) as f:
-        defaults = json.load(f)
 
     # Solved thresholds (human-level scores) for reference
     solved_thresholds = {

@@ -4,7 +4,8 @@ import os
 # Must be set BEFORE any CUDA/torch import
 os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "fork"
 
-import subprocess, sys
+import subprocess
+import sys
 
 print("Installing vLLM 0.10.2...")
 subprocess.run(

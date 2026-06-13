@@ -2,7 +2,9 @@
 
 Usage: colab exec -f launch.py --timeout 120
 """
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 
 def main() -> None:

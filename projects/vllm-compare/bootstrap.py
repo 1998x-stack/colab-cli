@@ -3,7 +3,9 @@
 Does pip install + spawn compare.py, all in one detached process
 so the colab exec WebSocket can disconnect without killing work.
 """
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 logfile = "/content/bootstrap.log"
 with open(logfile, "w") as log:

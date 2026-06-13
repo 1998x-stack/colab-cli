@@ -1,5 +1,8 @@
 """Launch SARSA training on Colab VM — install deps + spawn detached."""
-import subprocess, sys, os, time
+import subprocess
+import sys
+import os
+import time
 
 DEPS = ["gymnasium", "matplotlib"]
 SCRIPT = "train.py"
@@ -42,4 +45,4 @@ if proc.poll() is not None:
 
 print(f"[launch] OK. PID={proc.pid}  log={LOG}")
 print(f"[launch] Check: tail -f {LOG}")
-print(f"[launch] Output: /content/rl-sarsa-output/")
+print("[launch] Output: /content/rl-sarsa-output/")

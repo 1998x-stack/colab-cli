@@ -1,4 +1,5 @@
-import subprocess, os
+import subprocess
+import os
 
 print("=== Process Status ===")
 r = subprocess.run(["pgrep", "-a", "python"], capture_output=True, text=True)

@@ -16,7 +16,11 @@ Training config is tuned for T4 GPU (16GB VRAM, SM 7.5, no bf16):
   - Checkpoints every 100 steps, eval every 50 steps
 """
 
-import subprocess, sys, os, time, shutil
+import subprocess
+import sys
+import os
+import time
+import shutil
 
 NANOCHAT_DIR = "/content/nanochat"
 LOG_FILE = "/content/train.log"
@@ -114,5 +118,5 @@ with open(LOG_FILE, "w") as f:
 
 print(f"[launch] OK. PID={proc.pid}")
 print(f"[launch] Log: {LOG_FILE}")
-print(f"[launch] Check progress: cb exec -f check_progress.py --timeout 15")
-print(f"[launch] When done, run visualize.py to generate plots")
+print("[launch] Check progress: cb exec -f check_progress.py --timeout 15")
+print("[launch] When done, run visualize.py to generate plots")

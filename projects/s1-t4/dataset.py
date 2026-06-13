@@ -12,8 +12,12 @@ Usage:
     python dataset.py --skip-difficulty        # skip base model eval (faster)
     python dataset.py --n-total 500 --seed 0
 """
-import argparse, json, os, random, re, sys
-from pathlib import Path
+import argparse
+import json
+import os
+import random
+import re
+import sys
 
 TOKEN_PATHS = [
     os.path.expanduser("~/.huggingface/access_token"),
@@ -307,7 +311,6 @@ def main():
 
 def run_tests():
     """Quick unit tests for core functions."""
-    import sys
 
     # Test _extract_boxed
     assert _extract_boxed(r'\boxed{42}') == '42', "simple boxed failed"
@@ -317,8 +320,8 @@ def run_tests():
     print("  _extract_boxed: 4/4 passed")
 
     # Test check_correctness
-    assert check_correctness(r'\boxed{42}', r'\boxed{42}') == True, "exact match failed"
-    assert check_correctness(r'\boxed{42}', r'\boxed{43}') == False, "mismatch should fail"
+    assert check_correctness(r'\boxed{42}', r'\boxed{42}') is True, "exact match failed"
+    assert check_correctness(r'\boxed{42}', r'\boxed{43}') is False, "mismatch should fail"
     print("  check_correctness: 2/2 passed")
 
     # Test format_sample

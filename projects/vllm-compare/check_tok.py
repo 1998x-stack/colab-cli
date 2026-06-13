@@ -1,4 +1,5 @@
-import transformers, tokenizers
+import transformers
+import tokenizers
 print(f"transformers: {transformers.__version__}")
 print(f"tokenizers: {tokenizers.__version__}")
 

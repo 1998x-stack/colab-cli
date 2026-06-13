@@ -1,5 +1,6 @@
 """Check nanoGPT training progress on Colab VM."""
-import os, subprocess, sys
+import os
+import subprocess
 
 script = os.environ.get("CHECK_SCRIPT", "train_nanogpt.py")
 log = os.environ.get("CHECK_LOG", "/content/nanogpt_train.log")

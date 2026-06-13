@@ -5,7 +5,10 @@ trains a small BPE tokenizer (vocab=2048), saves to ~/.cache/autoresearch-t4/.
 One-time run. ~2-3 min on Colab T4.
 """
 
-import os, sys, time, argparse, pickle
+import os
+import time
+import argparse
+import pickle
 
 import torch
 from datasets import load_dataset

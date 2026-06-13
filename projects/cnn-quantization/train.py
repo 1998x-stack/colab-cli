@@ -356,7 +356,7 @@ def run_comparison(fp32_model, val_loader):
     int4_model.load_state_dict({k: v for k, v in fp32_model.state_dict().items()
                                 if k in int4_model.state_dict()}, strict=False)
     int4_acc = 100.0 * evaluate(int4_model, val_loader)
-    int4_size = get_model_size_mb(int4_model)  # Note: saves INT8+qweight — actual 4-bit is ~5.5 MB
+    get_model_size_mb(int4_model)  # Note: saves INT8+qweight — actual 4-bit is ~5.5 MB
     int4_lat = measure_latency(int4_model, val_loader)
     # Compute effective INT4 storage size
     n_params = sum(p.numel() for p in fp32_model.parameters() if p.dim() > 1)

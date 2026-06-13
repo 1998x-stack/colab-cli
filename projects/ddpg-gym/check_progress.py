@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Check training progress — tail log, show metrics, find latest plots."""
-import os, json, subprocess, sys
+import os
+import json
+import subprocess
 
 OUT = "/content/ddpg-output"
 LOG_PATH = f"{OUT}/train.log"

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Launch TD3 training as a detached subprocess on Colab VM."""
-import subprocess, sys, os, time
+import subprocess
+import sys
+import os
+import time
 
 DEPS = ["gymnasium", "matplotlib"]
 SCRIPT = "train.py"
@@ -28,7 +31,7 @@ with open(LOG, "w") as f:
     )
 
 print(f"OK. PID={proc.pid}  log={LOG}")
-print(f"Output dir: /content/td3-output/")
+print("Output dir: /content/td3-output/")
 
 time.sleep(3)
 try:

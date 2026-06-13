@@ -4,7 +4,9 @@ Installs system deps (libcairo2 for Atari rendering), Python deps,
 then spawns train.py as a detached subprocess.
 """
 
-import subprocess, sys, os
+import subprocess
+import sys
+import os
 
 # System dependencies for Atari / ALE rendering
 try:

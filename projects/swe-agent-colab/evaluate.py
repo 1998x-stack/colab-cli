@@ -59,7 +59,7 @@ def plot_results(metrics: dict, output_dir: str = "output"):
     plt.tight_layout()
     fig.savefig(out / "results.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"Saved results.png")
+    print("Saved results.png")
 
 
 def plot_timeline(metrics: dict, output_dir: str = "output"):
@@ -86,7 +86,7 @@ def plot_timeline(metrics: dict, output_dir: str = "output"):
     plt.tight_layout()
     fig.savefig(out / "timeline.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"Saved timeline.png")
+    print("Saved timeline.png")
 
 
 def plot_token_allocation(metrics: dict, output_dir: str = "output"):
