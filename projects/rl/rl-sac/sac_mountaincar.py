@@ -10,6 +10,7 @@ from collections import deque
 import random
 import os
 from datetime import datetime
+import json
 
 # ── Hyperparameters ──────────────────────────────────────────────────────────
 ENV_NAME = "MountainCarContinuous-v0"
@@ -316,6 +317,18 @@ def main():
     # Final save
     agent.save(os.path.join(CHECKPOINT_DIR, "final.pt"))
     print(f"\nTraining complete. Best return: {best_return:.2f}")
+
+    # Summary
+    summary = {
+        "env": ENV_NAME,
+        "episodes_completed": len(ep_returns),
+        "total_steps": total_steps,
+        "best_return": best_return,
+        "final_avg100": avg_return,
+        "device": str(DEVICE),
+    }
+    with open("/content/sac-summary.json", "w") as f:
+        json.dump(summary, f, indent=2)
 
     # ── Evaluation ────────────────────────────────────────────────────
     print("\n── Evaluation ──")
