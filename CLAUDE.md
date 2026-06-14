@@ -60,11 +60,12 @@ projects/
 
 ## Accounts
 
-**Colab (4 accounts)** — isolated via `$HOME` directories. See colab-cli skill for full details.
+**Colab (6 accounts)** — isolated via `$HOME` directories. See colab-cli skill for full details.
 
 ```bash
 colab   # hackxie1998 (default)    cb    # stefaniehu929
 cc      # xbetterdetermine          clb   # xieminghack
+clab    # xieminghacker
 ```
 
 **Kaggle (4 accounts)** — tokens in `.kaggle/access_token{1,2,3,4}`. Token 4 (xieming1998) is active. See kaggle-cli skill for multi-account management.

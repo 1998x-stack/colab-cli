@@ -16,7 +16,7 @@ Systematically measure how learning rate and batch size interact during CNN trai
 | **BS=64** | cc | cc | cc | cc |
 | **BS=256** | clb | clb | clb | clb |
 
-Reserve accounts: colb, clab (used if any primary account hits GPU exhaustion mid-run).
+Reserve account: clab (used if any primary account hits GPU exhaustion mid-run).
 
 ## Fixed Configuration
 
@@ -114,7 +114,7 @@ Merge CSVs → generate 5 comparison artifacts → write summary.
 
 | Risk | Mitigation |
 |------|-----------|
-| GPU exhaustion mid-run (412) | Move remaining experiments to colb/clab reserve |
+| GPU exhaustion mid-run (412) | Move remaining experiments to clab reserve |
 | WebSocket relay fails | Cron download still works (REST path). Data not lost. |
 | LR=1e-1 diverges immediately | Script detects loss > 3× initial → aborts that run, logs DIVERGED |
 | BS=256 OOMs T4 | SmallCNN on CIFAR-10 fits easily. BS=512 would be tight but we cap at 256. |

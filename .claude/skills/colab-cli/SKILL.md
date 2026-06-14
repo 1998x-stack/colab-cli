@@ -86,7 +86,7 @@ The `colab` CLI does not natively support multiple accounts — the OAuth2 token
 
 ### This machine's accounts
 
-Four aliases are configured in `~/.zshrc` (proxy included):
+Six aliases are configured in `~/.zshrc` (proxy included):
 
 | Alias | Account | HOME |
 |-------|---------|------|
@@ -94,6 +94,7 @@ Four aliases are configured in `~/.zshrc` (proxy included):
 | `cb` | stefaniehu929@gmail.com | `~/colab-accounts/account-b` |
 | `cc` | xbetterdetermine@gmail.com | `~/colab-accounts/account-c` |
 | `clb` | xieminghack@gmail.com | `~/colab-accounts/account-clb` |
+| `clab` | xieminghacker@gmail.com | `~/colab-accounts/account-clab` |
 
 ```bash
 # Fully interchangeable with the standard colab CLI:
@@ -107,13 +108,58 @@ cc exec -f infer.py
 
 clb new --gpu T4 -s experiment
 clb exec -f run.py --timeout 120
+
+clab new --gpu T4 -s job
+clab exec -f run.py --timeout 120
 ```
 
-**Verification:** `colab whoami` / `cb whoami` / `cc whoami` / `clb whoami` shows which account is active.
+**Verification:** `colab whoami` / `cb whoami` / `cc whoami` / `clb whoami` / `clab whoami` shows which account is active.
 
 **How it works:** All `colab` state paths derive from `$HOME` (`~/.config/colab-cli/`, `~/.colab-cli-oauth-config.json`). Each alias overrides `HOME` to point at an isolated directory tree. The proxy env vars (`HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`) are baked into each alias so they work from any shell.
 
 **Adding more accounts:** See `docs/multi-account-colab.md` for the full guide.
+
+### Account status files
+
+Two JSON files in the repo root track multi-account state at a glance — check them before provisioning to pick a healthy account.
+
+**`.colab-gpu-status.json`** — GPU quota availability per account:
+
+```json
+{
+  "checked_at": "ISO timestamp",
+  "accelerator": "T4",
+  "proxy_config": "B",
+  "accounts": {
+    "<alias>": {
+      "email": "...",
+      "gpu_available": true | false,
+      "error": null | "TooManyAssignmentsError (412) ..."
+    }
+  },
+  "summary": { "total": 6, "available": 5, "exhausted": 1 }
+}
+```
+
+**`.colab-session-status.json`** — active session counts per account:
+
+```json
+{
+  "checked_at": "ISO timestamp",
+  "accounts": {
+    "<alias>": {
+      "email": "...",
+      "gpu_sessions": 0,
+      "cpu_sessions": 0,
+      "total": 0,
+      "stale_pruned": 0
+    }
+  },
+  "summary": { "total_accounts": 6, "total_gpu_sessions": 0, "total_cpu_sessions": 0, "total_sessions": 0 }
+}
+```
+
+**Regenerate:** Run `colab sessions` on each account to refresh session status. GPU status needs a `colab new --gpu T4` probe per account (stop the test session immediately after). Both files are always read from disk — caching is OK across short intervals but recheck when a previous attempt failed with 412.
 
 ## Session lifecycle
 
@@ -392,3 +438,5 @@ The Colab VM's working directory is `/content/`. Uploaded files with relative pa
 - `docs/core-flows.md` — Command-level sequence diagrams (new, exec, upload, keep-alive, relay handoff, stop)
 - `docs/google-colab-cli-source-analysis.md` — Full source code architecture reference (v0.5.11)
 - `docs/guides/colab-drivemount.md` — Google Drive mount: OAuth flow, automation, 120s timeout, BUSY state, gotchas (tested 2026-06-14)
+- `../.colab-gpu-status.json` — Per-account GPU quota availability snapshot (T4, checked via probe)
+- `../.colab-session-status.json` — Per-account active session counts (GPU/CPU, checked via `colab sessions`)

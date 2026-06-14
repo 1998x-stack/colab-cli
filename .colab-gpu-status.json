@@ -1,0 +1,42 @@
+{
+  "checked_at": "2026-06-14T15:30:00+08:00",
+  "accelerator": "T4",
+  "proxy_config": "B",
+  "accounts": {
+    "colab": {
+      "alias": "colab",
+      "email": "hackxie1998@gmail.com",
+      "gpu_available": true,
+      "error": null
+    },
+    "cb": {
+      "alias": "cb",
+      "email": "stefaniehu929@gmail.com",
+      "gpu_available": false,
+      "error": "TooManyAssignmentsError (412) — GPU quota exhausted"
+    },
+    "cc": {
+      "alias": "cc",
+      "email": "xbetterdetermine@gmail.com",
+      "gpu_available": true,
+      "error": null
+    },
+    "clb": {
+      "alias": "clb",
+      "email": "xieminghack@gmail.com",
+      "gpu_available": true,
+      "error": null
+    },
+    "clab": {
+      "alias": "clab",
+      "email": "xieminghacker@gmail.com",
+      "gpu_available": true,
+      "error": null
+    }
+  },
+  "summary": {
+    "total": 5,
+    "available": 4,
+    "exhausted": 1
+  }
+}

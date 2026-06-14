@@ -8,6 +8,7 @@
 | `cb` | stefaniehu929@gmail.com | `~/colab-accounts/account-b` |
 | `cc` | xbetterdetermine@gmail.com | `~/colab-accounts/account-c` |
 | `clb` | xieminghack@gmail.com | `~/colab-accounts/account-clb` |
+| `clab` | xieminghacker@gmail.com | `~/colab-accounts/account-clab` |
 
 Alias 定义在 `~/.zshrc` 中，proxy env vars 已内置。
 

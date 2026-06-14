@@ -1,0 +1,52 @@
+{
+  "checked_at": "2026-06-14T15:32:00+08:00",
+  "accounts": {
+    "colab": {
+      "alias": "colab",
+      "email": "hackxie1998@gmail.com",
+      "gpu_sessions": 0,
+      "cpu_sessions": 0,
+      "total": 0,
+      "stale_pruned": 1
+    },
+    "cb": {
+      "alias": "cb",
+      "email": "stefaniehu929@gmail.com",
+      "gpu_sessions": 0,
+      "cpu_sessions": 0,
+      "total": 0,
+      "stale_pruned": 0
+    },
+    "cc": {
+      "alias": "cc",
+      "email": "xbetterdetermine@gmail.com",
+      "gpu_sessions": 0,
+      "cpu_sessions": 0,
+      "total": 0,
+      "stale_pruned": 1
+    },
+    "clb": {
+      "alias": "clb",
+      "email": "xieminghack@gmail.com",
+      "gpu_sessions": 0,
+      "cpu_sessions": 0,
+      "total": 0,
+      "stale_pruned": 1
+    },
+    "clab": {
+      "alias": "clab",
+      "email": "xieminghacker@gmail.com",
+      "gpu_sessions": 0,
+      "cpu_sessions": 0,
+      "total": 0,
+      "stale_pruned": 0
+    }
+  },
+  "summary": {
+    "total_accounts": 5,
+    "total_gpu_sessions": 0,
+    "total_cpu_sessions": 0,
+    "total_sessions": 0,
+    "active_accounts": 0
+  }
+}
