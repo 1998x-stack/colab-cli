@@ -7,10 +7,10 @@
     "pytorch": "2.11.0+cu128",
     "cuda": "12.8",
     "colab_tier": "free",
-    "total_experiments": 16,
-    "done": 3,
+    "total_experiments": 28,
+    "done": 12,
     "ready": 0,
-    "planned": 13
+    "planned": 16
   },
   "experiments": [
     {
@@ -26,7 +26,13 @@
       "launch_script": "projects/systems/pytorch-transfer-benchmark/launch.py",
       "output_dir": "projects/systems/pytorch-transfer-benchmark/output/",
       "reference_doc": "docs/reference/pytorch-cpu-gpu-transfer.md",
-      "tags": ["transfer", "pinned-memory", "dma", "pcie", "bandwidth"],
+      "tags": [
+        "transfer",
+        "pinned-memory",
+        "dma",
+        "pcie",
+        "bandwidth"
+      ],
       "colab_time_estimate_min": 2,
       "dependencies": [],
       "sources": [
@@ -43,12 +49,18 @@
       "description": "Calling tensor.to(device='cuda', dtype=float32) on uint8 casts on CPU first (4× data size), then transfers. Two-step (transfer uint8 first, cast on GPU) is 3-8× faster.",
       "expected_magnitude": "3-8× speedup for two-step on large images",
       "code_complexity": "~15 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 1,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/pytorch-transfer-benchmark/benchmark_transfer_002.py",
       "output_dir": "projects/systems/pytorch-transfer-benchmark/output/transfer-002/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#1.2",
-      "tags": ["transfer", "dtype", "ordering", "uint8", "image-pipeline"],
+      "tags": [
+        "transfer",
+        "dtype",
+        "ordering",
+        "uint8",
+        "image-pipeline"
+      ],
       "colab_time_estimate_min": 1,
       "dependencies": [],
       "sources": [],
@@ -61,12 +73,17 @@
       "description": "tensor.pin_memory().to('cuda', non_blocking=True) is 1.5-2× slower than tensor.to('cuda') because CUDA already creates a pinned staging buffer internally — double pinning overhead.",
       "expected_magnitude": "1.5-2× slower for the 'optimized' pattern",
       "code_complexity": "~15 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 2,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/pytorch-transfer-benchmark/benchmark_transfer_003.py",
       "output_dir": "projects/systems/pytorch-transfer-benchmark/output/transfer-003/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#1.3",
-      "tags": ["transfer", "pin_memory", "anti-pattern", "double-allocation"],
+      "tags": [
+        "transfer",
+        "pin_memory",
+        "anti-pattern",
+        "double-allocation"
+      ],
       "colab_time_estimate_min": 1,
       "dependencies": [],
       "sources": [],
@@ -79,12 +96,18 @@
       "description": "GPU is NOT always faster. Find the exact crossover where GPU starts beating CPU for matmul (expected ~100×100) and element-wise ops (expected ~10K elements) on T4.",
       "expected_magnitude": "CPU 2-100× faster below crossover; GPU wins above ~100×100 matmul, ~10K elem elements",
       "code_complexity": "~40 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 1,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_launch_001.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/launch-001/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#2.1",
-      "tags": ["kernel-launch", "cpu-vs-gpu", "crossover", "small-tensors", "matmul"],
+      "tags": [
+        "kernel-launch",
+        "cpu-vs-gpu",
+        "crossover",
+        "small-tensors",
+        "matmul"
+      ],
       "colab_time_estimate_min": 3,
       "dependencies": [],
       "sources": [],
@@ -97,12 +120,18 @@
       "description": "First CUDA call takes ~1.6s (context creation, PTX compilation, cuBLAS lazy init). Subsequent calls take ~30µs. torch.cuda.init() does NOT fully initialize CUDA.",
       "expected_magnitude": "~1.6s first call vs ~30µs subsequent (50,000× difference)",
       "code_complexity": "~15 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 2,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_launch_002.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/launch-002/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#2.2",
-      "tags": ["kernel-launch", "cuda-init", "warmup", "first-call", "lazy-init"],
+      "tags": [
+        "kernel-launch",
+        "cuda-init",
+        "warmup",
+        "first-call",
+        "lazy-init"
+      ],
       "colab_time_estimate_min": 1,
       "dependencies": [],
       "sources": [],
@@ -115,12 +144,18 @@
       "description": "Every .item() call is secretly cudaStreamSynchronize(). Batched .tolist() reduces N syncs to 1. At 50K steps with 4 metrics, per-metric .item() adds ~27% to training time.",
       "expected_magnitude": "10-30% training slowdown from per-metric .item()",
       "code_complexity": "~40 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 1,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_sync-001.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/sync-001/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#3.1",
-      "tags": ["sync", "item", "tolist", "training-loop", "cudaStreamSynchronize"],
+      "tags": [
+        "sync",
+        "item",
+        "tolist",
+        "training-loop",
+        "cudaStreamSynchronize"
+      ],
       "colab_time_estimate_min": 5,
       "dependencies": [],
       "sources": [
@@ -136,12 +171,18 @@
       "description": "Boolean masking forces CPU sync to determine output size. torch.where produces fixed-size output — no sync. torch.where can be 2-5× faster for sparse masks.",
       "expected_magnitude": "2-5× faster with torch.where for sparse masks",
       "code_complexity": "~20 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 2,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_sync-002.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/sync-002/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#3.3",
-      "tags": ["sync", "boolean-masking", "torch.where", "dynamic-shape", "nonzero"],
+      "tags": [
+        "sync",
+        "boolean-masking",
+        "torch.where",
+        "dynamic-shape",
+        "nonzero"
+      ],
       "colab_time_estimate_min": 2,
       "dependencies": [],
       "sources": [],
@@ -154,12 +195,18 @@
       "description": "Without torch.cuda.synchronize(), time.perf_counter() measures CPU submission latency (~5µs), not GPU execution time (~500µs). PyTorch's own benchmark framework had this bug until 2026.",
       "expected_magnitude": "10-100× timing discrepancy without sync",
       "code_complexity": "~15 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 2,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_sync-003.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/sync-003/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#3.4",
-      "tags": ["sync", "benchmarking", "methodology", "cudaEvent", "timing"],
+      "tags": [
+        "sync",
+        "benchmarking",
+        "methodology",
+        "cudaEvent",
+        "timing"
+      ],
       "colab_time_estimate_min": 1,
       "dependencies": [],
       "sources": [],
@@ -172,16 +219,23 @@
       "description": "After .T/.permute(), many ops silently call .contiguous() triggering full data copies. A chain of 10 ops on a non-contiguous tensor can copy 5-15 times without the user knowing.",
       "expected_magnitude": "2-10× slowdown; 5-15 implicit copies in a typical chain",
       "code_complexity": "~25 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 1,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_layout-001.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/layout-001/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#4.1",
-      "tags": ["layout", "contiguous", "permute", "transpose", "implicit-copy", "strides"],
+      "tags": [
+        "layout",
+        "contiguous",
+        "permute",
+        "transpose",
+        "implicit-copy",
+        "strides"
+      ],
       "colab_time_estimate_min": 2,
       "dependencies": [],
       "sources": [],
-      "notes": "Use torch.autograd.profiler to count aten::copy_ calls. Chain: matmul + layer_norm + add + relu + matmul × 3."
+      "notes": "Use torch.autograd.profiler to count aten::copy_ calls. Chain: matmul + layer_norm + add + relu + matmul × 3. NULL RESULT on CUDA 12.8: 0 aten::copy_ calls detected via profiler. Non-contiguous penalty only 0.9-1.4× (not 2-10×). PyTorch 2.11 handles non-contiguous op chains efficiently."
     },
     {
       "id": "layout-002",
@@ -190,12 +244,19 @@
       "description": "F.cross_entropy expects channels in dim=1; LLM logits have vocab in dim=-1. The internal permute creates non-contiguous tensor → reduction falls back to slow kernel. log_softmax + gather avoids the permute.",
       "expected_magnitude": "10-30× slowdown for cross_entropy with mismatched dim layout",
       "code_complexity": "~20 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 1,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_layout-002.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/layout-002/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#4.2",
-      "tags": ["layout", "cross_entropy", "log_softmax", "LLM", "permute", "vocab"],
+      "tags": [
+        "layout",
+        "cross_entropy",
+        "log_softmax",
+        "LLM",
+        "permute",
+        "vocab"
+      ],
       "colab_time_estimate_min": 2,
       "dependencies": [],
       "sources": [
@@ -210,16 +271,22 @@
       "description": "torch.index_select has optimized fast path only for 1D. For 2D+, x[:, idx] is 2-6× faster because it broadcasts indices and uses pointwise ops instead of a specialized gather kernel.",
       "expected_magnitude": "2-6× faster with regular indexing for 2D+",
       "code_complexity": "~15 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 3,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_layout-003.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/layout-003/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#4.3",
-      "tags": ["layout", "index_select", "indexing", "gather", "broadcast"],
+      "tags": [
+        "layout",
+        "index_select",
+        "indexing",
+        "gather",
+        "broadcast"
+      ],
       "colab_time_estimate_min": 1,
       "dependencies": [],
       "sources": [],
-      "notes": "Test 1D, 2D, 3D tensors of various sizes."
+      "notes": "Test 1D, 2D, 3D tensors of various sizes. NULL RESULT on CUDA 12.8: index_select vs regular indexing nearly identical (0.9-1.2×). Expected 2-6× difference not observed."
     },
     {
       "id": "memory-001",
@@ -233,7 +300,14 @@
       "benchmark_script": null,
       "output_dir": "projects/systems/cuda-dark-corners/output/memory-001/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#5.1",
-      "tags": ["memory", "allocator", "fragmentation", "OOM", "expandable_segments", "caching"],
+      "tags": [
+        "memory",
+        "allocator",
+        "fragmentation",
+        "OOM",
+        "expandable_segments",
+        "caching"
+      ],
       "colab_time_estimate_min": 2,
       "dependencies": [],
       "sources": [
@@ -253,7 +327,14 @@
       "benchmark_script": null,
       "output_dir": "projects/systems/cuda-dark-corners/output/precision-001/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#6.1",
-      "tags": ["mixed-precision", "fp16", "adam", "eps", "NaN", "numerical-stability"],
+      "tags": [
+        "mixed-precision",
+        "fp16",
+        "adam",
+        "eps",
+        "NaN",
+        "numerical-stability"
+      ],
       "colab_time_estimate_min": 5,
       "dependencies": [],
       "sources": [],
@@ -271,7 +352,14 @@
       "benchmark_script": null,
       "output_dir": "projects/systems/cuda-dark-corners/output/precision-002/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#6.2",
-      "tags": ["mixed-precision", "tensor-cores", "FP16", "matmul", "TFLOPS", "utilization"],
+      "tags": [
+        "mixed-precision",
+        "tensor-cores",
+        "FP16",
+        "matmul",
+        "TFLOPS",
+        "utilization"
+      ],
       "colab_time_estimate_min": 3,
       "dependencies": [],
       "sources": [],
@@ -289,7 +377,14 @@
       "benchmark_script": "projects/systems/torch-compile-pipeline/train.py",
       "output_dir": "projects/systems/torch-compile-pipeline/output/",
       "reference_doc": "projects/systems/torch-compile-pipeline/README.md",
-      "tags": ["torch.compile", "inductor", "triton", "eager", "SM-7.5", "cuDNN"],
+      "tags": [
+        "torch.compile",
+        "inductor",
+        "triton",
+        "eager",
+        "SM-7.5",
+        "cuDNN"
+      ],
       "colab_time_estimate_min": 10,
       "dependencies": [],
       "sources": [],
@@ -307,38 +402,334 @@
       "benchmark_script": null,
       "output_dir": "projects/systems/cuda-dark-corners/output/compile-002/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#8.2",
-      "tags": ["torch.compile", "non-contiguous", "max", "reduction", "inductor", "layout"],
+      "tags": [
+        "torch.compile",
+        "non-contiguous",
+        "max",
+        "reduction",
+        "inductor",
+        "layout"
+      ],
       "colab_time_estimate_min": 2,
       "dependencies": [],
       "sources": [
         "https://github.com/pytorch/pytorch/issues/144431"
       ],
       "notes": "Compare torch.max(x) vs torch.max(x.contiguous()) under compile for transposed tensors."
+    },
+    {
+      "id": "dltrain-001",
+      "category": "dl-training",
+      "title": "Overfit a single batch — the ultimate debug check",
+      "description": "Verify model can memorize 2-16 examples to near-zero loss. Catches: wrong loss function, bad init, broken data pipeline, gradient flow issues. Karpathy: most important debugging technique.",
+      "expected_magnitude": "Catches 80% of structural bugs before full training",
+      "code_complexity": "~15 lines",
+      "status": "planned",
+      "priority": 1,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-001/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#1.1",
+      "tags": [
+        "debugging",
+        "overfit",
+        "karpathy",
+        "sanity-check"
+      ],
+      "colab_time_estimate_min": 1,
+      "dependencies": [],
+      "sources": [
+        "http://karpathy.github.io/2019/04/25/recipe/"
+      ],
+      "notes": "Remove dropout, weight decay, augmentation for this test. Loss should drop to <0.01 within 100 steps."
+    },
+    {
+      "id": "dltrain-002",
+      "category": "dl-training",
+      "title": "Loss at initialization — theoretical sanity check",
+      "description": "For K-class softmax, initial loss must be -ln(1/K). CIFAR-10 → ~2.30. If wildly different, init or loss function is wrong.",
+      "expected_magnitude": "Instant diagnosis of init bugs",
+      "code_complexity": "~5 lines",
+      "status": "planned",
+      "priority": 1,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-002/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#1.2",
+      "tags": [
+        "debugging",
+        "initialization",
+        "loss",
+        "sanity-check"
+      ],
+      "colab_time_estimate_min": 1,
+      "dependencies": [],
+      "sources": [
+        "http://karpathy.github.io/2019/04/25/recipe/"
+      ],
+      "notes": "Compare kaiming_uniform vs xavier_uniform initial loss on transformer — 17× grad norm difference."
+    },
+    {
+      "id": "dltrain-003",
+      "category": "dl-training",
+      "title": "OneCycleLR vs constant LR — superconvergence demo",
+      "description": "Train same model with OneCycleLR vs constant LR. OneCycleLR reaches SOTA accuracy in 1/10 the iterations by cycling LR up then cosine-annealing down.",
+      "expected_magnitude": "2-10× convergence speedup",
+      "code_complexity": "~30 lines",
+      "status": "planned",
+      "priority": 1,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-003/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#2.1",
+      "tags": [
+        "optimization",
+        "learning-rate",
+        "OneCycleLR",
+        "superconvergence"
+      ],
+      "colab_time_estimate_min": 5,
+      "dependencies": [],
+      "sources": [
+        "https://arxiv.org/abs/1708.07120"
+      ],
+      "notes": "Critical for Colab ~10 min GPU window. Use CIFAR-10 + small CNN."
+    },
+    {
+      "id": "dltrain-004",
+      "category": "dl-training",
+      "title": "AdamW vs Adam — weight decay decoupling matters",
+      "description": "Same weight_decay value, different internal behavior. Adam applies L2 before adaptive normalization; AdamW applies true weight decay after. Demonstrated on small CNN + CIFAR-10.",
+      "expected_magnitude": "Noticeably better generalization with AdamW",
+      "code_complexity": "~20 lines",
+      "status": "planned",
+      "priority": 2,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-004/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#2.3",
+      "tags": [
+        "optimization",
+        "AdamW",
+        "weight-decay",
+        "generalization"
+      ],
+      "colab_time_estimate_min": 5,
+      "dependencies": [],
+      "sources": [
+        "https://arxiv.org/abs/1711.05101"
+      ],
+      "notes": "Most underappreciated optimizer fix of the past 5 years."
+    },
+    {
+      "id": "dltrain-005",
+      "category": "dl-training",
+      "title": "EMA of weights — free 0.5-1% accuracy",
+      "description": "Maintain shadow weights with exponential moving average (β=0.999). Use shadow weights at eval. ~5 lines of code, zero training cost.",
+      "expected_magnitude": "+0.5-1% accuracy, zero training cost",
+      "code_complexity": "~10 lines",
+      "status": "planned",
+      "priority": 2,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-005/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#2.6",
+      "tags": [
+        "regularization",
+        "EMA",
+        "free-lunch",
+        "generalization"
+      ],
+      "colab_time_estimate_min": 5,
+      "dependencies": [],
+      "sources": [],
+      "notes": "Best ROI among all regularization techniques."
+    },
+    {
+      "id": "dltrain-006",
+      "category": "dl-training",
+      "title": "Label smoothing — prevents overconfidence + attention collapse",
+      "description": "CrossEntropyLoss(label_smoothing=0.1). Prevents model from assigning extreme probabilities. In Transformers, prevents attention collapse where attention concentrates on too few tokens.",
+      "expected_magnitude": "+0.3-1% accuracy, better calibration",
+      "code_complexity": "~10 lines (one parameter change)",
+      "status": "planned",
+      "priority": 2,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-006/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#4.1",
+      "tags": [
+        "regularization",
+        "label-smoothing",
+        "calibration",
+        "transformer"
+      ],
+      "colab_time_estimate_min": 5,
+      "dependencies": [],
+      "sources": [],
+      "notes": "Clean datasets: ε=0.05. Noisy: ε=0.1-0.2."
+    },
+    {
+      "id": "dltrain-007",
+      "category": "dl-training",
+      "title": "Data augmentation hurts at low epochs — Colab-critical",
+      "description": "With <90 epochs, augmentation slows convergence. At 20 epochs, no-aug beats aug by 2-5%. Colab GPUs die in ~10 min — augmentation may waste your limited window.",
+      "expected_magnitude": "2-5% accuracy advantage for no-aug at 20 epochs",
+      "code_complexity": "~20 lines",
+      "status": "planned",
+      "priority": 1,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-007/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#4.2",
+      "tags": [
+        "augmentation",
+        "colab",
+        "epoch-budget",
+        "regularization"
+      ],
+      "colab_time_estimate_min": 8,
+      "dependencies": [],
+      "sources": [],
+      "notes": "Already observed in AlexNet project. Test with CIFAR-10: 20 epochs with vs without augmentation."
+    },
+    {
+      "id": "dltrain-008",
+      "category": "dl-training",
+      "title": "bias=False before BatchNorm — the dead parameter tax",
+      "description": "Linear/Conv bias immediately subtracted by BN running mean. It learns nothing and wastes compute. Always set bias=False before BN.",
+      "expected_magnitude": "Wasted parameters, subtle training instability",
+      "code_complexity": "~10 lines",
+      "status": "planned",
+      "priority": 3,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-008/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#6.1",
+      "tags": [
+        "architecture",
+        "batchnorm",
+        "bias",
+        "dead-parameter"
+      ],
+      "colab_time_estimate_min": 2,
+      "dependencies": [],
+      "sources": [],
+      "notes": "One of Karpathy 6 common mistakes."
+    },
+    {
+      "id": "dltrain-009",
+      "category": "dl-training",
+      "title": "LR Finder — find optimal LR in one epoch",
+      "description": "Start with tiny LR, exponentially increase each batch, plot loss. Pick LR at steepest descent (~1/10 of divergence point). Beats guessing or grid search.",
+      "expected_magnitude": "Saves 3-5 wasted Colab sessions",
+      "code_complexity": "~25 lines",
+      "status": "planned",
+      "priority": 2,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-009/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#2.2",
+      "tags": [
+        "optimization",
+        "learning-rate",
+        "lr-finder",
+        "hyperparameter"
+      ],
+      "colab_time_estimate_min": 3,
+      "dependencies": [],
+      "sources": [
+        "https://github.com/davidtvs/pytorch-lr-finder"
+      ],
+      "notes": "fast.ai technique. Works on any model/dataset."
+    },
+    {
+      "id": "dltrain-010",
+      "category": "dl-training",
+      "title": "SWA (Stochastic Weight Averaging) — free 1-2% accuracy",
+      "description": "Average checkpoints from last ~25% of training. PyTorch native: torch.optim.swa_utils.AveragedModel. Finds flatter minima with better generalization.",
+      "expected_magnitude": "+1-2% accuracy, negligible overhead",
+      "code_complexity": "~15 lines",
+      "status": "planned",
+      "priority": 2,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-010/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#2.7",
+      "tags": [
+        "regularization",
+        "SWA",
+        "free-lunch",
+        "generalization"
+      ],
+      "colab_time_estimate_min": 5,
+      "dependencies": [],
+      "sources": [
+        "https://arxiv.org/abs/1803.05407"
+      ],
+      "notes": "One of the few techniques that is both trivial and clearly beneficial."
+    },
+    {
+      "id": "dltrain-011",
+      "category": "dl-training",
+      "title": "Non-contiguous view vs reshape — silent data corruption",
+      "description": "view() requires contiguous memory; fails silently or crashes on permuted tensors. reshape() copies when needed. Prefer reshape() unless you explicitly want view-only error.",
+      "expected_magnitude": "Silent batch-dimension corruption if wrong",
+      "code_complexity": "~10 lines",
+      "status": "planned",
+      "priority": 3,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-011/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#7.8",
+      "tags": [
+        "pytorch",
+        "view",
+        "reshape",
+        "contiguous",
+        "silent-bug"
+      ],
+      "colab_time_estimate_min": 1,
+      "dependencies": [],
+      "sources": [],
+      "notes": "One of Karpathy 6 common mistakes."
+    },
+    {
+      "id": "dltrain-012",
+      "category": "dl-training",
+      "title": "AdamW weight decay on bias/BN parameters — harmful",
+      "description": "Applying weight_decay to bias terms and BN gamma/beta harms training. Standard practice: exclude bias & norm params from weight decay via param groups.",
+      "expected_magnitude": "Slightly worse generalization if applied",
+      "code_complexity": "~15 lines",
+      "status": "planned",
+      "priority": 3,
+      "benchmark_script": null,
+      "output_dir": "projects/systems/dl-training/output/dltrain-012/",
+      "reference_doc": "docs/reference/dl-training-tricks.md#4.3",
+      "tags": [
+        "optimization",
+        "weight-decay",
+        "batchnorm",
+        "param-groups"
+      ],
+      "colab_time_estimate_min": 3,
+      "dependencies": [],
+      "sources": [],
+      "notes": "Compare: weight_decay on all params vs exclude bias+BN."
     }
   ],
   "categories": {
     "cpu-gpu-transfer": {
       "label": "CPU-GPU Transfer",
       "count": 3,
-      "done": 1,
+      "done": 3,
       "icon": "⇄"
     },
     "kernel-launch": {
       "label": "Kernel Launch & GPU-vs-CPU",
       "count": 2,
-      "done": 0,
+      "done": 2,
       "icon": "🚀"
     },
     "hidden-synchronization": {
       "label": "Hidden Synchronization Points",
       "count": 3,
-      "done": 0,
+      "done": 3,
       "icon": "⏸"
     },
     "tensor-layout": {
       "label": "Tensor Layout & Memory Access",
       "count": 3,
-      "done": 0,
+      "done": 3,
       "icon": "📐"
     },
     "memory-allocator": {
@@ -358,20 +749,70 @@
       "count": 2,
       "done": 1,
       "icon": "⚡"
+    },
+    "dl-training": {
+      "label": "DL Training Tricks & Methodology",
+      "count": 12,
+      "done": 0,
+      "icon": "🎓"
     }
   },
   "priority_bucket": {
     "p1_quick_win": {
       "description": "High impact, <5 min on T4, <30 lines code — run first",
-      "ids": ["transfer-002", "launch-001", "sync-001", "layout-001", "layout-002", "memory-001"]
+      "ids": [
+        "transfer-002",
+        "launch-001",
+        "sync-001",
+        "layout-001",
+        "layout-002",
+        "memory-001"
+      ]
     },
     "p2_medium": {
       "description": "Good impact, moderate effort",
-      "ids": ["transfer-003", "launch-002", "sync-002", "sync-003", "precision-001", "precision-002"]
+      "ids": [
+        "transfer-003",
+        "launch-002",
+        "sync-002",
+        "sync-003",
+        "precision-001",
+        "precision-002"
+      ]
     },
     "p3_nice_to_have": {
       "description": "Interesting but lower priority",
-      "ids": ["layout-003", "compile-002"]
+      "ids": [
+        "layout-003",
+        "compile-002"
+      ]
+    },
+    "p1_dl_quick_win": {
+      "description": "DL training tricks — high impact debugging & methodology",
+      "ids": [
+        "dltrain-001",
+        "dltrain-002",
+        "dltrain-003",
+        "dltrain-007"
+      ]
+    },
+    "p2_dl_optimization": {
+      "description": "DL training tricks — optimization & regularization",
+      "ids": [
+        "dltrain-004",
+        "dltrain-005",
+        "dltrain-006",
+        "dltrain-009",
+        "dltrain-010"
+      ]
+    },
+    "p3_dl_architecture": {
+      "description": "DL training tricks — architecture & gotchas",
+      "ids": [
+        "dltrain-008",
+        "dltrain-011",
+        "dltrain-012"
+      ]
     }
   },
   "dependencies_graph": {
@@ -381,13 +822,34 @@
     "layout-001": [],
     "layout-002": [],
     "memory-001": [],
-    "transfer-003": ["transfer-001"],
+    "transfer-003": [
+      "transfer-001"
+    ],
     "launch-002": [],
     "sync-002": [],
-    "sync-003": ["launch-001"],
+    "sync-003": [
+      "launch-001"
+    ],
     "precision-001": [],
     "precision-002": [],
-    "layout-003": ["layout-001"],
-    "compile-002": ["compile-001"]
-  }
+    "layout-003": [
+      "layout-001"
+    ],
+    "compile-002": [
+      "compile-001"
+    ],
+    "dltrain-001": [],
+    "dltrain-002": [],
+    "dltrain-003": [],
+    "dltrain-004": [],
+    "dltrain-005": [],
+    "dltrain-006": [],
+    "dltrain-007": [],
+    "dltrain-008": [],
+    "dltrain-009": [],
+    "dltrain-010": [],
+    "dltrain-011": [],
+    "dltrain-012": []
+  },
+  "": "PyTorch & CUDA performance dark-corners + DL training tricks — catalog + status tracker for Colab T4 benchmarking."
 }
