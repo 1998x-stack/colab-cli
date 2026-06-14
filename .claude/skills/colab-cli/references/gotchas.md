@@ -123,6 +123,16 @@ After sustained GPU usage, Colab may deny further GPU access with `TooManyAssign
 
 The CLI caches session info locally. After a session dies on the server, the local cache may still show it. `colab sessions` refreshes from the server and prunes stale entries. The message `[colab] Pruned 1 stale local session(s).` during `colab exec` means the session died silently.
 
+### Data caching on VM saves ~45s per re-run
+
+The first Colab session on a project downloads data, trains tokenizers, and pre-tokenizes. These cached artifacts in `/content/` vanish when the session ends, but within a single session they survive across multiple `colab exec` calls. When re-provisioning after a session dies:
+
+- Data download + tokenizer training + pre-tokenization: ~45s on T4
+- With cached data still on `/content/` from prior exec: 0s, training starts immediately
+- **Plan for it:** If you need multiple runs (e.g., hyperparameter tuning), do data prep once then re-launch training multiple times within the same session. When the session dies, the next session pays the 45s tax again.
+
+**Observed in:** transformer-ln-comparison (2026-06-14) — second run skipped the 18MB IWSLT download and tokenization, starting training ~45s faster.
+
 ## Subprocess behavior
 
 ### stdout is fully buffered in subprocess
@@ -480,6 +490,28 @@ colab upload local.py /content/train.py
 echo 'import subprocess; subprocess.run(["tar","-czf","/content/results.tar.gz","-C","/content","output-dir"])' | colab exec -s <name>
 colab download -s <name> /content/results.tar.gz ./results.tar.gz
 ```
+
+### fetch.sh: tar via exec can fail — always have a fallback
+
+The `tar` step in a fetch script runs through `colab exec` (WebSocket). When the WebSocket is down or the kernel is busy, the tar operation fails silently. Always implement a fallback that downloads individual files via `colab download` (REST), which survives WebSocket drops:
+
+```bash
+# Try tar + download (fast, single file)
+tar_output=$(echo '...' | colab exec -s "$session" --timeout 15 2>/dev/null) || true
+
+if echo "$tar_output" | grep -q "TAR_OK"; then
+    colab download -s "$session" /content/fetch.tar.gz "$local_dir/fetch.tar.gz"
+    tar -xzf "$local_dir/fetch.tar.gz" -C "$local_dir/"
+else
+    # Fallback: download individual files via REST
+    colab download -s "$session" /content/output/logs/train.log "$local_dir/logs/train.log" 2>/dev/null || true
+    colab download -s "$session" /content/output/metrics.csv "$local_dir/metrics.csv" 2>/dev/null || true
+fi
+```
+
+Also exclude checkpoints from the tar (`--exclude=checkpoints`) to keep the download under the ~624MB proxy limit. Typical metrics + logs + PNGs tar to 50-80KB.
+
+**Observed in:** transformer-ln-comparison fetch.sh (2026-06-14)
 
 ### quoting in colab exec heredocs
 
