@@ -109,11 +109,12 @@ def main():
         prompt_ids = input_ids[:label_start]
         gt_ids = [int(input_ids[j]) for j in range(label_start, len(labels)) if labels[j] != -100]
 
-        prompt_text = tokenizer.decode(prompt_ids.tolist(), skip_special_tokens=True)
         gt_sql = tokenizer.decode(gt_ids, skip_special_tokens=True).strip()
 
-        # Generate SQL
-        model_inputs = tokenizer(prompt_text, return_tensors="pt", truncation=True, max_length=1024).to(device)
+        # Use raw prompt token IDs directly (preserves chat template structure)
+        prompt_tensor = prompt_ids.unsqueeze(0).to(device)
+        attn_tensor = ex["attention_mask"][:label_start].unsqueeze(0).to(device)
+        model_inputs = {"input_ids": prompt_tensor, "attention_mask": attn_tensor}
         with torch.no_grad():
             generated = model.generate(
                 **model_inputs, max_new_tokens=256, do_sample=False,
@@ -160,7 +161,7 @@ def main():
             error_counts[error_type] += 1
 
         entry = {
-            "question": prompt_text[-200:],
+            "question": context_text[-200:],
             "generated_sql": gen_sql,
             "ground_truth": gt_sql,
             "exact_match": exact_match,
