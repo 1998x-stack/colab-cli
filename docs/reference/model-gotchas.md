@@ -1,5 +1,65 @@
 # Model Gotchas
 
+Cross-project lessons about model architecture, training behavior, and Colab-specific constraints.
+
+## Training Fundamentals
+
+### Noam LR Scheduler — Peak LR trap: small d_model + short warmup = dangerously high LR
+
+The Noam formula `lr = d_model^(-0.5) * min(step^(-0.5), step * warmup^(-1.5))` peaks at `d_model^(-0.5) * warmup^(-0.5)`. With the paper's params (d=512, warmup=4000): peak = 0.00070. With common "small model" params (d=256, warmup=200): peak = 0.00442 — **6.3x higher**.
+
+When scaling down model size, you must scale warmup proportionally to keep the peak LR in a safe range:
+- `warmup = k / d_model` where k ≈ 2,048,000 for the paper's peak of 0.0007
+- For d=256: warmup ≥ 8000 to match paper's peak
+- Quick sanity: `peak = d^(-0.5) * warmup^(-0.5)` — if >0.002, raise warmup
+
+**Observed in:** transformer-ln-comparison (2026-06-14), transformer_iwslt
+
+### Post-LN requires the Noam warmup; Pre-LN is robust without it
+
+Pre-LN's architecture provides a gradient highway through the residual connection (`x + Sublayer(LayerNorm(x))`). Post-LN forces gradients through LayerNorm (`LayerNorm(x + Sublayer(x))`), amplifying variance. This means:
+
+- Post-LN without warmup → NaN within 100-200 steps
+- Pre-LN without warmup → trains fine (though warmup still helps convergence speed)
+- For fair comparison experiments, use identical hyperparameters — the instability IS the result
+
+**Observed in:** transformer-ln-comparison (2026-06-14)
+
+### Weight Initialization — Default PyTorch init can be 17x worse than the transformer standard
+
+PyTorch Linear defaults to kaiming_uniform (fan-in mode), optimized for ReLU networks. Transformers use GeLU/ReLU in FFN but have complex gradient paths through attention + residuals. The standard transformer init:
+- Linear layers: `xavier_uniform` with gain `1/sqrt(2)` (accounts for residual paths)
+- Embeddings: `normal(mean=0, std=d_model^(-0.5))`
+
+Step-1 gradient norm comparison (same model, d=256, IWSLT2017):
+- kaiming_uniform: grad=89.0
+- xavier_uniform + normal embed: grad=5.1 (17x lower)
+
+**Observed in:** transformer-ln-comparison (2026-06-14)
+
+### NaN Diagnosis — Propagation order: val_loss first, train_loss 1-2 intervals later
+
+When weights start producing NaN, it shows up in validation loss first (lower batch count, no gradient clipping protection during eval). Train loss stays finite for 1-2 logging intervals because:
+1. Gradient clipping at 1.0 masks the NaN in the backward pass
+2. Adam's momentum smooths out individual NaN updates
+3. Validation uses larger effective batch (all val data) → more NaN accumulation
+
+**If val_loss=NaN, stop immediately.** The model weights are already corrupted. Continuing just fills your metrics CSV with NaN rows.
+
+### NaN is contagious through Adam's second moment
+
+Once a single weight becomes NaN, Adam's `v_t` (running variance) accumulates NaN. Within 1-2 steps, all weights propagate NaN through the exponential moving average. You cannot recover — must restart from the last clean checkpoint.
+
+### Gradient Clipping — Clipping at 1.0 can mask but not prevent NaN
+
+With unclipped gradients of ~50-120 (typical post-LN early training), clipping to 1.0 cuts 98%+ of the gradient magnitude. This keeps training alive temporarily but doesn't fix the underlying instability. The clipped gradients are still large enough to push weights into regimes where the next forward pass produces NaN activations.
+
+**Fix the LR schedule and initialization** — don't rely on aggressive clipping as a band-aid.
+
+---
+
+## Project-Specific Gotchas
+
 Field-tested issues encountered when running ML models on Colab VMs.
 
 ## nanoGPT (karpathy/nanoGPT)
