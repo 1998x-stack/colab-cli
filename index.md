@@ -52,13 +52,14 @@ GPU training from the terminal. 30 projects across 6 domains, all trained on fre
 |---------|-------|----------|
 | [`gnn-citation`](./projects/gnn/gnn-citation/) | 2-layer GCN | Cora, CiteSeer, PubMed |
 
-### Systems & Infrastructure (`projects/systems/`) — 3 projects
+### Systems & Infrastructure (`projects/systems/`) — 4 projects
 
 | Project | Description |
 |---------|-------------|
 | [`autoresearch-t4`](./projects/systems/autoresearch-t4/) | Autonomous LLM pretraining research (5-min budget, T4) |
 | [`cuda-tutorial`](./projects/systems/cuda-tutorial/) | 7 progressive CUDA kernel tutorials (numba.cuda) |
 | [`swe-agent-colab`](./projects/systems/swe-agent-colab/) | SWE-agent on Colab: vLLM + Qwen2.5-7B → fix GitHub issues |
+| [`pytorch-transfer-benchmark`](./projects/systems/pytorch-transfer-benchmark/) | CPU-GPU transfer throughput: pinned memory 9.2× speedup |
 
 ### Tutorials (`projects/tutorials/`) — 1 project
 
