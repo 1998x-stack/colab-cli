@@ -1,7 +1,8 @@
 """Benchmark layout-003: index_select vs regular indexing — dedicated function slower for 2D+.
 
-torch.index_select has optimized fast path only for 1D. For 2D+, x[:, idx] is 2-6×
-faster because it broadcasts indices and uses pointwise ops instead of gather kernel.
+torch.index_select has optimized fast path only for 1D. For 2D+, x[:, idx] is
+2-6× faster because it broadcasts indices and uses pointwise ops instead of a
+specialized gather kernel.
 """
 
 import torch
@@ -11,18 +12,8 @@ import csv
 from pathlib import Path
 
 OUT_DIR = os.environ.get("OUT_DIR", "/content/cuda-dark-corners-output/layout-003")
-WARMUP = 10
+WARMUP = 20
 ITERS = 100
-
-# (dim0, dim1, n_select) — varying tensor shapes and select counts
-CONFIGS = [
-    (100, 128, 10, "1D"),     # 1D case — index_select should be fine
-    (100, 128, 10, "2D-rows"),  # select rows from 2D
-    (500, 256, 50, "2D-rows"),
-    (100, 128, 10, "2D-cols"),  # select cols from 2D
-    (500, 256, 50, "2D-cols"),
-    (128, 64, 32, "3D-batch"), # select from first dim of 3D
-]
 
 
 def setup():
@@ -34,14 +25,12 @@ def measure(fn):
     for _ in range(WARMUP):
         fn()
         torch.cuda.synchronize()
-    times = []
+    torch.cuda.synchronize()
+    t0 = time.perf_counter()
     for _ in range(ITERS):
-        torch.cuda.synchronize()
-        t0 = time.perf_counter()
         fn()
-        torch.cuda.synchronize()
-        times.append(time.perf_counter() - t0)
-    return sum(times) / len(times)
+    torch.cuda.synchronize()
+    return (time.perf_counter() - t0) / ITERS
 
 
 def main():
@@ -58,44 +47,42 @@ def main():
         log_msg(f"GPU: {torch.cuda.get_device_name(0)}  |  PyTorch {torch.__version__}")
 
         with open(csv_path, "w", newline="") as cf:
-            csv_w = csv.DictWriter(cf, fieldnames=["shape", "dim", "method", "avg_us", "speedup"])
+            csv_w = csv.DictWriter(cf, fieldnames=["dims", "shape", "method", "avg_us", "speedup"])
             csv_w.writeheader()
 
-            for d0, d1, n_sel, label in CONFIGS:
-                idx = torch.randint(0, d1 if "cols" in label else d0, (n_sel,), device="cuda")
+            configs = [
+                ("1D", (10000,), 1000),
+                ("2D", (1000, 1000), 100),
+                ("2D", (5000, 1000), 100),
+                ("3D", (100, 1000, 100), 50),
+                ("3D", (500, 500, 100), 50),
+            ]
 
-                if label == "1D":
-                    x = torch.randn(d0, device="cuda")
-                    dim = 0
-                    t_is = measure(lambda xx=x, ii=idx: torch.index_select(xx, dim, ii))
-                    t_reg = measure(lambda xx=x, ii=idx: xx[ii])
-                elif "rows" in label:
-                    x = torch.randn(d0, d1, device="cuda")
-                    dim = 0
-                    t_is = measure(lambda xx=x, ii=idx: torch.index_select(xx, dim, ii))
-                    t_reg = measure(lambda xx=x, ii=idx: xx[ii])
-                elif "cols" in label:
-                    x = torch.randn(d0, d1, device="cuda")
-                    dim = 1
-                    idx = torch.randint(0, d1, (n_sel,), device="cuda")
-                    t_is = measure(lambda xx=x, ii=idx: torch.index_select(xx, dim, ii))
-                    t_reg = measure(lambda xx=x, ii=idx: xx[:, ii])
-                elif "3D" in label:
-                    x = torch.randn(d0, d1, n_sel, device="cuda")
-                    dim = 0
-                    idx = torch.randint(0, d0, (n_sel,), device="cuda")
-                    t_is = measure(lambda xx=x, ii=idx: torch.index_select(xx, dim, ii))
-                    t_reg = measure(lambda xx=x, ii=idx: xx[ii])
+            for dims, shape, n_select in configs:
+                shape_str = "×".join(str(s) for s in shape)
 
-                speedup = t_is / t_reg
+                for dim in ([0] if dims == "1D" else [0, 1]):  # test dim=0 and dim=1 for 2D+
+                    x = torch.randn(*shape, device="cuda")
+                    idx = torch.randint(0, shape[dim], (n_select,), device="cuda")
 
-                shape_str = f"{d0}×{d1}" if "3D" not in label else f"{d0}×{d1}×{n_sel}"
-                log_msg(f"  {shape_str:>12} dim={dim} select={n_sel}  index_select: {t_is*1e6:8.1f}µs  |  regular: {t_reg*1e6:8.1f}µs  |  {speedup:.1f}× {'(index_select faster)' if speedup < 1 else '(regular faster)'}")
+                    # Method A: index_select (dedicated function)
+                    t_isel = measure(lambda x=x, d=dim, i=idx: x.index_select(d, i))
 
-                csv_w.writerow({"shape": shape_str, "dim": dim, "method": "index_select", "avg_us": round(t_is * 1e6, 1), "speedup": round(speedup, 2)})
-                csv_w.writerow({"shape": shape_str, "dim": dim, "method": "regular_index", "avg_us": round(t_reg * 1e6, 1), "speedup": 1.0})
+                    # Method B: regular indexing (broadcast + pointwise)
+                    if dim == 0:
+                        t_reg = measure(lambda x=x, i=idx: x[i])
+                    else:
+                        t_reg = measure(lambda x=x, i=idx: x[:, i])
 
-                del x, idx
+                    speedup = t_isel / t_reg
+                    winner = "regular idx" if speedup > 1 else "index_select"
+
+                    log_msg(f"  {dims} {shape_str:>20s}  dim={dim} select {n_select}:  index_select={t_isel*1e6:.1f}µs  regular={t_reg*1e6:.1f}µs  {winner} {speedup:.1f}×")
+
+                    csv_w.writerow({"dims": dims, "shape": f"{shape_str} dim={dim}", "method": "index_select", "avg_us": round(t_isel * 1e6, 1), "speedup": round(speedup, 2)})
+                    csv_w.writerow({"dims": dims, "shape": f"{shape_str} dim={dim}", "method": "regular_indexing", "avg_us": round(t_reg * 1e6, 1), "speedup": 1.0})
+
+                    del x, idx
 
         log_msg("\nDone.")
 

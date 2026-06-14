@@ -10,7 +10,7 @@ import csv
 from pathlib import Path
 
 OUT_DIR = os.environ.get("OUT_DIR", "/content/cuda-dark-corners-output/precision-001")
-N_STEPS = 500
+N_STEPS = 500  # enough to see NaN with bad eps
 
 
 def setup():
@@ -28,68 +28,59 @@ def main():
             print(msg, flush=True)
             log_fh.write(msg + "\n")
 
-        log_msg("precision-001: FP16 eps=1e-8 silent NaN generator")
+        log_msg("precision-001: FP16 eps=1e-8 rounds to zero")
         log_msg(f"GPU: {torch.cuda.get_device_name(0)}  |  PyTorch {torch.__version__}")
 
         with open(csv_path, "w", newline="") as cf:
-            csv_w = csv.DictWriter(cf, fieldnames=["eps", "step", "loss", "grad_norm", "has_nan"])
+            csv_w = csv.DictWriter(cf, fieldnames=["step", "eps", "loss", "grad_norm", "status"])
             csv_w.writeheader()
 
-            for eps_val in [1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3]:
-                log_msg(f"\n{'='*40}")
-                log_msg(f"eps = {eps_val:.0e}")
-                log_msg(f"{'='*40}")
+            model_fp16 = torch.nn.Sequential(
+                torch.nn.Linear(256, 128),
+                torch.nn.ReLU(),
+                torch.nn.Linear(128, 64),
+                torch.nn.ReLU(),
+                torch.nn.Linear(64, 10),
+            ).cuda().half()  # FP16 model
 
-                model = torch.nn.Sequential(
-                    torch.nn.Linear(128, 256),
-                    torch.nn.ReLU(),
-                    torch.nn.Linear(256, 256),
-                    torch.nn.ReLU(),
-                    torch.nn.Linear(256, 10),
-                ).cuda()
+            x = torch.randn(64, 256, device="cuda", dtype=torch.float16)
+            y = torch.randint(0, 10, (64,), device="cuda")
+            loss_fn = torch.nn.CrossEntropyLoss()
 
-                opt = torch.optim.Adam(model.parameters(), lr=1e-3, eps=eps_val, weight_decay=0)
-                scaler = torch.amp.GradScaler("cuda")
-                loss_fn = torch.nn.CrossEntropyLoss()
+            for eps_val, label in [(1e-8, "eps=1e-8 (FP32 default, BROKEN for FP16)"), (1e-4, "eps=1e-4 (FP16-safe)")]:
+                # Reset model
+                def init_weights(m):
+                    if isinstance(m, torch.nn.Linear):
+                        m.reset_parameters()
+                model_fp16.apply(init_weights)
 
+                opt = torch.optim.Adam(model_fp16.parameters(), lr=1e-3, eps=eps_val)
+
+                log_msg(f"\n--- {label} ---")
                 nan_step = None
                 for step in range(N_STEPS):
-                    x = torch.randn(32, 128, device="cuda")
-                    y = torch.randint(0, 10, (32,), device="cuda")
-
                     opt.zero_grad()
-                    with torch.amp.autocast("cuda"):
-                        out = model(x)
-                        loss = loss_fn(out, y)
+                    out = model_fp16(x)
+                    loss = loss_fn(out, y)
+                    loss.backward()
 
-                    scaler.scale(loss).backward()
+                    total_norm = torch.nn.utils.clip_grad_norm_(model_fp16.parameters(), 10.0)
+                    grad_norm = float(total_norm) if total_norm is not None else -1
 
-                    # Check for NaN
-                    has_nan = False
-                    for p in model.parameters():
-                        if p.grad is not None and (not p.grad.isfinite().all()):
-                            has_nan = True
-                            break
-
-                    grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0).item()
-
-                    scaler.step(opt)
-                    scaler.update()
-
-                    if step % 50 == 0 or has_nan:
-                        log_msg(f"  step {step:>4}: loss={loss.item():.4f}  grad_norm={grad_norm:.4f}  nan={'!!!' if has_nan else 'ok'}")
-
-                    csv_w.writerow({"eps": f"{eps_val:.0e}", "step": step, "loss": round(loss.item(), 6), "grad_norm": round(grad_norm, 6), "has_nan": has_nan})
-
-                    if has_nan:
+                    if torch.isnan(total_norm) or torch.isinf(total_norm):
+                        log_msg(f"  Step {step}: NaN/Inf grad norm! Loss={loss.item():.4f}")
+                        csv_w.writerow({"step": step, "eps": label, "loss": loss.item(), "grad_norm": -1, "status": "NaN"})
                         nan_step = step
-                        log_msg(f"  -> NaN detected at step {step} with eps={eps_val:.0e}")
                         break
 
-                if nan_step is None:
-                    log_msg(f"  -> No NaN within {N_STEPS} steps with eps={eps_val:.0e}")
+                    opt.step()
 
-                del model, opt, scaler
+                    if step % 50 == 0 or step == N_STEPS - 1:
+                        log_msg(f"  Step {step:>4}: loss={loss.item():.4f}  grad_norm={grad_norm:.6f}")
+                        csv_w.writerow({"step": step, "eps": label, "loss": loss.item(), "grad_norm": round(grad_norm, 6), "status": "OK"})
+
+                if nan_step is None:
+                    log_msg(f"  Survived {N_STEPS} steps without NaN")
 
         log_msg("\nDone.")
 

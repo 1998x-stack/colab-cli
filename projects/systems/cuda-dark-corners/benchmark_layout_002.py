@@ -66,27 +66,28 @@ def main():
 
                 # Method A: F.cross_entropy with layout fix (.contiguous() or transpose)
                 # cross_entropy expects (N, C, ...) — permute needed
-                t_ce_fixed = measure(lambda: F.cross_entropy(
-                    logits.permute(0, 2, 1).contiguous(), targets, reduction="mean"
+                t_ce_fixed = measure(lambda L=logits, T=targets: F.cross_entropy(
+                    L.permute(0, 2, 1).contiguous(), T, reduction="mean"
                 ))
 
                 # Method B: F.cross_entropy without .contiguous() — non-contiguous after permute
-                t_ce_noncontig = measure(lambda: F.cross_entropy(
-                    logits.permute(0, 2, 1), targets, reduction="mean"
+                t_ce_noncontig = measure(lambda L=logits, T=targets: F.cross_entropy(
+                    L.permute(0, 2, 1), T, reduction="mean"
                 ))
 
                 # Method C: log_softmax + gather (no permute needed)
-                t_ls_gather = measure(lambda: -F.log_softmax(logits, dim=-1)
-                                       .gather(-1, targets.unsqueeze(-1))
+                t_ls_gather = measure(lambda L=logits, T=targets: -F.log_softmax(L, dim=-1)
+                                       .gather(-1, T.unsqueeze(-1))
                                        .squeeze(-1).mean())
 
                 # Method D: cross_entropy with vocab in dim=1 layout (native)
                 logits_native = logits.permute(0, 2, 1).contiguous()
-                t_ce_native = measure(lambda: F.cross_entropy(logits_native, targets, reduction="mean"))
+                t_ce_native = measure(lambda LN=logits_native, T=targets: F.cross_entropy(LN, T, reduction="mean"))
 
-                speedup_best = t_ce_noncontig / min(t_ce_fixed, t_ls_gather, t_ce_native)
+                best_speedup = t_ce_noncontig / min(t_ce_fixed, t_ls_gather, t_ce_native)
 
                 log_msg(f"\n  B={batch} S={seq_len} V={vocab}:")
+                log_msg(f"    Best method speedup vs baseline: {best_speedup:.1f}×")
                 log_msg(f"    CE (permute, non-contiguous): {t_ce_noncontig*1000:.4f} ms  ← baseline")
                 log_msg(f"    CE (permute + .contiguous()): {t_ce_fixed*1000:.4f} ms  ({t_ce_noncontig/t_ce_fixed:.1f}× faster)")
                 log_msg(f"    log_softmax + gather:         {t_ls_gather*1000:.4f} ms  ({t_ce_noncontig/t_ls_gather:.1f}× faster)")

@@ -1,8 +1,8 @@
 """Benchmark memory-001: Allocator fragmentation — allocation order causes OOM.
 
 Allocating small-then-large can waste 2× reserved memory because small segments
-can't merge. expandable_segments:True eliminates this. Same total bytes, different
-allocation order -> OOM or not.
+can't merge. expandable_segments:True eliminates this. Same bytes, different order
+→ OOM or not.
 """
 
 import torch
@@ -18,26 +18,12 @@ def setup():
         Path(OUT_DIR, sub).mkdir(parents=True, exist_ok=True)
 
 
-def alloc_test(label, allocs_fn):
-    """Run an allocation pattern and report memory stats."""
-    torch.cuda.empty_cache()
-    torch.cuda.reset_peak_memory_stats()
-
-    try:
-        tensors = allocs_fn()
-        allocated = torch.cuda.memory_allocated() / 1024**2
-        reserved = torch.cuda.memory_reserved() / 1024**2
-        peak = torch.cuda.max_memory_allocated() / 1024**2
-        waste = (reserved - allocated) / allocated * 100 if allocated > 0 else 0
-        # Cleanup
-        for t in tensors:
-            del t
-        torch.cuda.empty_cache()
-        return True, allocated, reserved, peak, waste
-    except RuntimeError as e:
-        if "out of memory" in str(e):
-            return False, 0, 0, 0, 0
-        raise
+def get_mem_info():
+    return {
+        "allocated_mb": torch.cuda.memory_allocated() / 1024**2,
+        "reserved_mb": torch.cuda.memory_reserved() / 1024**2,
+        "max_allocated_mb": torch.cuda.max_memory_allocated() / 1024**2,
+    }
 
 
 def main():
@@ -50,85 +36,72 @@ def main():
             print(msg, flush=True)
             log_fh.write(msg + "\n")
 
-        total = torch.cuda.get_device_properties(0).total_memory / 1024**3
-        log_msg("memory-001: Allocator fragmentation")
-        log_msg(f"GPU: {torch.cuda.get_device_name(0)}  |  VRAM: {total:.1f} GB  |  PyTorch {torch.__version__}")
+        log_msg("memory-001: Allocator fragmentation — allocation order causes OOM")
+        log_msg(f"GPU: {torch.cuda.get_device_name(0)}  |  PyTorch {torch.__version__}")
+        total_mb = torch.cuda.get_device_properties(0).total_memory / 1024**2
+        log_msg(f"Total VRAM: {total_mb:.0f} MB")
 
         with open(csv_path, "w", newline="") as cf:
-            csv_w = csv.DictWriter(cf, fieldnames=["pattern", "success", "allocated_mb", "reserved_mb", "peak_mb", "waste_pct", "expandable"])
+            csv_w = csv.DictWriter(cf, fieldnames=["test", "order", "allocated_mb", "reserved_mb", "waste_pct", "result"])
             csv_w.writeheader()
 
-            MB = 1024 * 1024
-            n_small = 100
-            small_size = 5 * MB  # 5 MB each = 500 MB total
-            large_size = 6000 * MB  # 6 GB single tensor
-            # Total = 6.5 GB (fits in T4 15.6 GB)
-            # But small-then-large fragments: 100 × 5MB interleaved → can't merge
+            torch.cuda.empty_cache()
+            torch.cuda.reset_peak_memory_stats()
 
-            # --- Pattern 1: small-then-large (fragmentation-prone) ---
-            def small_then_large():
-                tensors = []
-                for _ in range(n_small):
-                    tensors.append(torch.randn(small_size // 4, device="cuda"))
-                tensors.append(torch.randn(large_size // 4, device="cuda"))
-                return tensors
+            # --- Test 1: Small-then-large (BAD order — causes fragmentation) ---
+            log_msg("\n--- Test 1: Small-then-large (fragmentation-prone) ---")
+            torch.cuda.empty_cache()
+            small_tensors = []
+            for _ in range(20):
+                small_tensors.append(torch.zeros(256, 256, device="cuda"))  # 256KB each
+            mem_after_small = get_mem_info()
+            log_msg(f"  After 20× small tensors: allocated={mem_after_small['allocated_mb']:.0f}MB  reserved={mem_after_small['reserved_mb']:.0f}MB")
 
-            ok, alloc, res, peak, waste = alloc_test("small-then-large", small_then_large)
-            log_msg("\nsmall-then-large (100×5MB + 1×6GB):")
-            log_msg(f"  success={ok}  allocated={alloc:.0f}MB  reserved={res:.0f}MB  peak={peak:.0f}MB  waste={waste:.0f}%")
-            csv_w.writerow({"pattern": "small-then-large", "success": ok, "allocated_mb": round(alloc, 1) if ok else 0, "reserved_mb": round(res, 1) if ok else 0, "peak_mb": round(peak, 1) if ok else 0, "waste_pct": round(waste, 1) if ok else 0, "expandable": False})
+            # Try to allocate large tensor
+            block_mb = int(total_mb * 0.45)  # 45% of VRAM
+            nelem = block_mb * 1024 * 1024 // 4
+            try:
+                large = torch.zeros(nelem, device="cuda")
+                mem_after_large = get_mem_info()
+                waste = (mem_after_large['reserved_mb'] - mem_after_large['allocated_mb']) / mem_after_large['allocated_mb'] * 100
+                log_msg(f"  After large ({block_mb}MB): allocated={mem_after_large['allocated_mb']:.0f}MB  reserved={mem_after_large['reserved_mb']:.0f}MB  waste={waste:.0f}%")
+                csv_w.writerow({"test": "small-then-large", "order": "bad", "allocated_mb": round(mem_after_large['allocated_mb'], 1), "reserved_mb": round(mem_after_large['reserved_mb'], 1), "waste_pct": round(waste, 1), "result": "OK"})
+                del large
+            except RuntimeError as e:
+                log_msg(f"  OOM on large tensor: {e}")
+                csv_w.writerow({"test": "small-then-large", "order": "bad", "allocated_mb": round(mem_after_small['allocated_mb'], 1), "reserved_mb": round(mem_after_small['reserved_mb'], 1), "waste_pct": 0, "result": "OOM"})
 
-            # --- Pattern 2: large-then-small (fragmentation-avoiding) ---
-            def large_then_small():
-                tensors = [torch.randn(large_size // 4, device="cuda")]
-                for _ in range(n_small):
-                    tensors.append(torch.randn(small_size // 4, device="cuda"))
-                return tensors
+            del small_tensors
+            torch.cuda.empty_cache()
 
-            ok, alloc, res, peak, waste = alloc_test("large-then-small", large_then_small)
-            log_msg("\nlarge-then-small (1×6GB + 100×5MB):")
-            log_msg(f"  success={ok}  allocated={alloc:.0f}MB  reserved={res:.0f}MB  peak={peak:.0f}MB  waste={waste:.0f}%")
-            csv_w.writerow({"pattern": "large-then-small", "success": ok, "allocated_mb": round(alloc, 1) if ok else 0, "reserved_mb": round(res, 1) if ok else 0, "peak_mb": round(peak, 1) if ok else 0, "waste_pct": round(waste, 1) if ok else 0, "expandable": False})
+            # --- Test 2: Large-then-small (GOOD order — no fragmentation) ---
+            log_msg("\n--- Test 2: Large-then-small (fragmentation-resistant) ---")
+            torch.cuda.reset_peak_memory_stats()
 
-            # --- Pattern 3: interleaved small-large-small (worst case) ---
-            def interleaved():
-                tensors = []
-                for i in range(50):
-                    tensors.append(torch.randn(small_size // 4, device="cuda"))
-                    tensors.append(torch.randn(large_size // 50 // 4, device="cuda"))
-                return tensors
+            try:
+                large_first = torch.zeros(nelem, device="cuda")
+                mem_after_large = get_mem_info()
+                log_msg(f"  After large ({block_mb}MB): allocated={mem_after_large['allocated_mb']:.0f}MB  reserved={mem_after_large['reserved_mb']:.0f}MB")
 
-            ok, alloc, res, peak, waste = alloc_test("interleaved", interleaved)
-            log_msg("\ninterleaved (50×[5MB + 120MB]):")
-            log_msg(f"  success={ok}  allocated={alloc:.0f}MB  reserved={res:.0f}MB  peak={peak:.0f}MB  waste={waste:.0f}%")
-            csv_w.writerow({"pattern": "interleaved", "success": ok, "allocated_mb": round(alloc, 1) if ok else 0, "reserved_mb": round(res, 1) if ok else 0, "peak_mb": round(peak, 1) if ok else 0, "waste_pct": round(waste, 1) if ok else 0, "expandable": False})
+                small2 = []
+                for _ in range(20):
+                    small2.append(torch.zeros(256, 256, device="cuda"))
+                mem_final = get_mem_info()
+                waste2 = (mem_final['reserved_mb'] - mem_final['allocated_mb']) / mem_final['allocated_mb'] * 100
+                log_msg(f"  After 20× small: allocated={mem_final['allocated_mb']:.0f}MB  reserved={mem_final['reserved_mb']:.0f}MB  waste={waste2:.0f}%")
+                csv_w.writerow({"test": "large-then-small", "order": "good", "allocated_mb": round(mem_final['allocated_mb'], 1), "reserved_mb": round(mem_final['reserved_mb'], 1), "waste_pct": round(waste2, 1), "result": "OK"})
+                del large_first, small2
+            except RuntimeError as e:
+                log_msg(f"  OOM: {e}")
+                csv_w.writerow({"test": "large-then-small", "order": "good", "allocated_mb": 0, "reserved_mb": 0, "waste_pct": 0, "result": "OOM"})
 
-            # --- Pattern 4: Trigger OOM via fragmentation ---
-            # Fill most of VRAM with many small tensors, then try a large one
-            log_msg("\n--- Fragmentation stress test ---")
-            n_fill = 800
-            fill_size = 15 * MB  # 800 × 15MB = 12GB allocated → ~14GB reserved
-            big = 3000 * MB
+            torch.cuda.empty_cache()
 
-            def fill_then_big():
-                tensors = []
-                for _ in range(n_fill):
-                    tensors.append(torch.randn(fill_size // 4, device="cuda"))
-                allocated_mid = torch.cuda.memory_allocated() / 1024**2
-                reserved_mid = torch.cuda.memory_reserved() / 1024**2
-                log_msg(f"  After {n_fill}×15MB: allocated={allocated_mid:.0f}MB  reserved={reserved_mid:.0f}MB")
-                try:
-                    tensors.append(torch.randn(big // 4, device="cuda"))
-                    log_msg("  Big alloc (3GB): SUCCESS")
-                except RuntimeError:
-                    log_msg("  Big alloc (3GB): OOM! Fragmentation prevented allocation")
-                return tensors
-
-            ok, alloc, res, peak, waste = alloc_test("fill-then-big", fill_then_big)
-            csv_w.writerow({"pattern": "fill-then-big", "success": ok, "allocated_mb": round(alloc, 1) if ok else 0, "reserved_mb": round(res, 1) if ok else 0, "peak_mb": round(peak, 1) if ok else 0, "waste_pct": round(waste, 1) if ok else 0, "expandable": False})
-
-            log_msg(f"\nSummary: fragmentation waste = {waste:.0f}% of allocated memory")
-            log_msg("Set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to eliminate fragmentation.")
+            # --- Summary ---
+            log_msg(f"\n--- Summary ---")
+            log_msg(f"  Peak allocated:  {torch.cuda.max_memory_allocated() / 1024**2:.0f} MB")
+            log_msg(f"  Peak reserved:   {torch.cuda.max_memory_reserved() / 1024**2:.0f} MB")
+            log_msg(f"  Set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to eliminate fragmentation.")
 
         log_msg("\nDone.")
 
