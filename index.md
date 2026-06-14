@@ -107,7 +107,9 @@ GPU training from the terminal. 38 projects across 6 domains, all trained on fre
 | [`statusline-config`](./docs/reference/statusline-config.md) | Statusline configuration |
 | [`pytorch-cpu-gpu-transfer`](./docs/reference/pytorch-cpu-gpu-transfer.md) | GPU→CPU 9× slowdown root cause (DMA, pinned memory) |
 | [`pytorch-cuda-dark-corners`](./docs/reference/pytorch-cuda-dark-corners.md) | Catalog of non-obvious performance pitfalls for T4 benchmarking |
+| [`dl-training-tricks`](./docs/reference/dl-training-tricks.md) | Field-tested training methodology: Karpathy, Google Tuning Playbook, fast.ai |
 | [`text2sql-finetune`](./docs/reference/text2sql-finetune.md) | Text-to-SQL fine-tuning article (Zhihu) |
+| [`autodl-platform`](./docs/reference/autodl-platform.md) | AutoDL 算力云: GPU platform comparison, pricing, workflow, gotchas |
 
 ### Other docs
 
