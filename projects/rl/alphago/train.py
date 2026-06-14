@@ -14,6 +14,9 @@ import shutil
 import numpy as np
 import torch
 import torch.nn.functional as F
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 from game import GoBoard, GameConfig, GameRunner, BLACK, WHITE, EMPTY, OPPONENT
 from model import AlphaGoNet, BatchEncoder
@@ -76,6 +79,49 @@ def _openmp_workaround():
 def _ensure_dirs(*paths: str):
     for p in paths:
         os.makedirs(p, exist_ok=True)
+
+
+# --- plotting ---
+
+
+def plot_session(epoch_metrics: list[dict], eval_metrics: dict, out_dir: str):
+    """Generate 2-panel training curves figure (overwritten each session)."""
+    os.makedirs(f"{out_dir}/pngs", exist_ok=True)
+    epochs = list(range(1, len(epoch_metrics) + 1))
+    policy_losses = [e["policy_loss"] for e in epoch_metrics]
+    value_losses = [e["value_loss"] for e in epoch_metrics]
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    # Panel 1: Per-epoch loss curves
+    ax = axes[0]
+    ax.plot(epochs, policy_losses, "tab:blue", marker="o", label="Policy Loss")
+    ax.plot(epochs, value_losses, "tab:red", marker="s", label="Value Loss")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Loss")
+    ax.set_title("AlphaGo — Training Loss")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    # Panel 2: Eval results + summary
+    ax = axes[1]
+    ax.axis("off")
+    lines = [
+        f"Win rate: {eval_metrics.get('win_rate', 0):.3f}",
+        f"Wins: {eval_metrics.get('wins', 0)}",
+        f"Losses: {eval_metrics.get('losses', 0)}",
+        f"Draws: {eval_metrics.get('draws', 0)}",
+        f"Epochs: {len(epoch_metrics)}",
+        f"Final policy loss: {policy_losses[-1]:.4f}" if policy_losses else "",
+        f"Final value loss: {value_losses[-1]:.4f}" if value_losses else "",
+    ]
+    for i, line in enumerate(lines):
+        ax.text(0.1, 0.9 - i * 0.1, line, transform=ax.transAxes, fontsize=12, family="monospace")
+    ax.set_title("Evaluation Summary")
+
+    plt.tight_layout()
+    plt.savefig(f"{out_dir}/pngs/loss_curves.png", dpi=120)
+    plt.close()
 
 
 # --- policy / action conversion ---
@@ -538,6 +584,7 @@ def main(cfg: AlphaGoConfig | None = None):
 
         # --- train ---
         train_metrics = {"policy_loss": 0.0, "value_loss": 0.0, "total_loss": 0.0}
+        epoch_metrics_list: list[dict] = []
         if positions and budget.check(cfg.budget_train, "train"):
             logger.log(f"Training: {len(positions)} positions, {cfg.n_epochs} epochs")
             for ep in range(cfg.n_epochs):
@@ -546,6 +593,7 @@ def main(cfg: AlphaGoConfig | None = None):
                            f"policy_loss={ep_metrics['policy_loss']:.4f} | "
                            f"value_loss={ep_metrics['value_loss']:.4f}")
                 train_metrics = ep_metrics
+                epoch_metrics_list.append(ep_metrics)
 
                 if budget.hard_cutoff():
                     logger.log("[HARD-CUTOFF] During training — saving and exiting")
@@ -591,6 +639,10 @@ def main(cfg: AlphaGoConfig | None = None):
         }
         with open(f"{cfg.local_output_dir}/summary.json", "w") as f:
             json.dump(summary, f, indent=2)
+
+        # Training curves (overwritten each session)
+        if epoch_metrics_list:
+            plot_session(epoch_metrics_list, eval_metrics, cfg.local_output_dir)
 
         logger.log(f"=== Session complete | iter={iteration} | "
                    f"best={'YES' if is_best else 'no'} | {budget.status()} ===")
