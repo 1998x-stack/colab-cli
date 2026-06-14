@@ -460,6 +460,19 @@ def train_one(algo, env_name, n_episodes, out_dir):
     torch.save({"actor": actor.state_dict(), "critic": critic.state_dict(),
                 "episode": n_episodes},
                f"{out_dir}/final_model.pt")
+
+    # Summary
+    import json
+    summary = {
+        "algo": algo, "env": env_name,
+        "episodes_completed": n_episodes,
+        "total_steps": step,
+        "best_eval_reward": best_eval,
+        "elapsed_s": round(elapsed, 1),
+        "device": str(device),
+    }
+    with open(f"{out_dir}/summary.json", "w") as f:
+        json.dump(summary, f, indent=2)
     log(f"=== DONE {algo} {env_name} | best_eval={best_eval:.2f} | elapsed={elapsed:.0f}s ===")
     env.close()
     eval_env.close()
@@ -574,6 +587,16 @@ def main():
     plot_comparison(all_results, f"{OUT_ROOT}/comparison")
 
     # Final summary
+    import json as _json
+    master_summary = {
+        "completed_at": str(datetime.now()),
+        "device": str(device),
+        "results": {f"{r['algo']}_{r['env']}": {"best_eval": r["best_eval"],
+                    "episodes": len(r["episodes"])} for r in all_results},
+    }
+    with open(f"{OUT_ROOT}/summary.json", "w") as f:
+        _json.dump(master_summary, f, indent=2)
+
     print(f"\n{'='*60}")
     print(f"  ALL DONE — {datetime.now()}")
     for res in all_results:
