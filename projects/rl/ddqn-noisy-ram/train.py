@@ -530,6 +530,18 @@ for cfg_idx, (algo, env_name) in enumerate(configs):
 # ── Final ───────────────────────────────────────────────────────────────────
 save_all()
 plot_all()
+
+# Summary
+summary = {}
+for name, data in sorted(all_results.items()):
+    evals = data.get("evals", [])
+    eps = data.get("episodes", [])
+    best = max(e["mean_reward"] for e in evals) if evals else float("nan")
+    final = evals[-1]["mean_reward"] if evals else float("nan")
+    summary[name] = {"episodes": len(eps), "best_eval": best, "final_eval": final}
+with open(f"{args.out_dir}/summary.json", "w") as f:
+    json.dump({"completed_at": str(datetime.now()), "device": str(device),
+               "results": summary}, f, indent=2)
 log_print(f"\n=== ALL DONE | {datetime.now()} ===")
 for name, data in sorted(all_results.items()):
     evals = data.get("evals", [])
