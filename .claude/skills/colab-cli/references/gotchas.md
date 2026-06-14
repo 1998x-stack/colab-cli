@@ -81,11 +81,11 @@ Provisioning a second GPU session raises `TooManyAssignmentsError (412 Precondit
 
 **Official free-tier limits**: 12h max session, ~90min idle timeout. GPU quota is dynamic — heavy usage triggers 12-24h cooldown before GPU is available again.
 
-**Observed from China**: `colab exec` frequently drops after ~12-15 min of wall-clock time. This is NOT Colab killing the session — it's the WebSocket connection dying through the SOCKS5 proxy. The session itself (and any detached training) survives, but interactive exec becomes unreachable.
+**Observed from China**: `colab exec` frequently drops after ~8-12 min of wall-clock time (carrier-dependent). This is NOT Colab killing the session — it's the WebSocket connection dying through the SOCKS5 proxy. The session itself (and any detached training) survives, but interactive exec becomes unreachable.
 
 The keep-alive daemon (auto-spawned by `colab new`, calls `KeepAliveAssignment` RPC via REST every 60s, max 24h) prevents idle timeout. But it uses REST API (`colab.pa.googleapis.com`), not WebSocket — so it does nothing for exec stability.
 
-See `docs/websocket-stability-analysis.md` for the full root-cause analysis.
+See `docs/websocket-stability-china.md` for the full root-cause analysis.
 
 ### Why exec drops: two-path architecture
 
@@ -184,7 +184,7 @@ If WebSocket direct fails, flip: remove `no_proxy`, use `HTTPS_PROXY=http://...`
 
 The correct combination varies per session — flip and retry.
 
-See `docs/websocket-stability-analysis.md` for the full root-cause analysis with source code references.
+See `docs/websocket-stability-china.md` for the full root-cause analysis with source code references.
 
 ### SSL errors are usually transient
 
@@ -193,6 +193,10 @@ See `docs/websocket-stability-analysis.md` for the full root-cause analysis with
 ### Session URLs change
 
 The session's backend URL (the `gpu-t4-s-kkb-...colab.dev` host) can change across kernel restarts. If `colab exec` suddenly fails with connection errors, check `colab status` to see if the session is still valid.
+
+### REST upload doesn't need WebSocket — but exec does
+
+`colab upload` goes through the **REST** path (HTTPS PUT to `*.prod.colab.dev`), NOT WebSocket. The upload is reliable even when exec WebSocket is down. However, `colab exec` uses WebSocket (WSS), which is the unstable path from China.
 
 ### WebSocket drops during sustained exec — use detached bootstrap for long workflows
 
@@ -414,9 +418,9 @@ If this has already happened, fix on the VM:
 echo 'import os; os.remove("/content/s1-t4"); os.makedirs("/content/s1-t4", exist_ok=True)' | colab exec -s <name>
 ```
 
-### Multi-file deploy: use base64 embed, not upload
+### Multi-file deploy: use base64 embed for single-exec efficiency
 
-`colab upload` goes through the **WebSocket** path (same as `colab exec`), meaning it suffers the same China-proxy instability. For projects with multiple files, skip upload entirely — generate a Python script that embeds all project files as base64 and writes them to `/content/`:
+`colab upload` uses REST (HTTPS PUT to `*.prod.colab.dev`), which is reliable even when WebSocket drops. But each upload is a separate REST call, and multi-file projects can be slow. For projects with many files, skip upload entirely — generate a Python script that embeds all project files as base64 and writes them to `/content/` in a single `colab exec`:
 
 ```python
 # On local machine, generate the deploy script:
@@ -508,6 +512,44 @@ colab exec -f check_progress.py
 ```
 
 If you must inline, use only simple expressions — no f-strings, no dicts, no backslash escapes. Multi-line Python via `echo` is almost always wrong.
+
+## Drive mount
+
+### `colab drivemount` internal timeout is 120s, not the CLI's 600s
+
+The CLI has a 600s timeout (`automation.py:35`), but `drive.mount()` on the VM has an internal 120s timeout (`timeout_ms=120000`). The critical chain:
+1. CLI prints OAuth URL → user completes browser auth → user presses Enter
+2. CLI calls `credentials-propagation` API
+3. Kernel receives `input_reply` and resumes `drive.mount()`
+4. `drive.mount()` waits up to 120s for DFS credentials to be ready
+5. If credentials not ready: `ValueError: mount failed`
+
+The 120s clock starts when the kernel receives the `input_reply`, NOT when the URL is printed. But the practical constraint is: **complete browser OAuth within ~90s** of the URL appearing, to leave time for propagation.
+
+**Mitigation:** Open the browser immediately. If you miss the window, `colab stop` + `colab new` + retry.
+
+### Killed drivemount leaves session in unrecoverable BUSY state
+
+If `colab drivemount` is killed (Ctrl+C, SIGTERM, network drop), the kernel is still executing `drive.mount()` and waiting for a WebSocket `input_reply` that will never arrive. Session status shows `BUSY (automation(drivemount))`.
+
+**You cannot re-run drivemount on this session** — the kernel is stuck in the mount flow. Must `colab stop -s <name>` + `colab new -s <name>` to get a fresh kernel.
+
+### Drive mount works on CPU sessions (no GPU needed)
+
+`colab drivemount` only needs a running session — any variant works. Use `colab new -s <name>` (CPU) to avoid consuming your one free GPU slot. This is useful for:
+- Checking what's on Drive before deciding whether to provision GPU
+- Downloading data from Drive to local, then uploading to a GPU session
+- Verifying that Drive auth is cached before GPU provisioning
+
+### First mount per account requires browser OAuth; subsequent mounts auto-succeed
+
+The first time an account uses `colab drivemount`, you must complete browser OAuth. After that, the OAuth token is cached by Colab's backend — `credentials-propagation` succeeds without prompting. To pre-authorize without CLI: open a browser Colab notebook, click "Mount Drive", and complete the auth flow there. The authorization is per-account, not per-session.
+
+### The `input()` prompt has no trailing newline — `readline()` blocks forever
+
+When automating drivemount with `subprocess.Popen` and `proc.stdout.readline()`, the reader blocks after the URL line because the Colab kernel's `input("Press Enter...")` prints the prompt WITHOUT a trailing newline and then waits for stdin. `readline()` waits for `\n` which never arrives.
+
+**Fix for automation:** Use a background thread to read stdout with `iter(proc.stdout.readline, "")` while the main thread scans accumulated output via regex for the OAuth URL. The thread blocks harmlessly; the main thread proceeds as soon as the URL is detected.
 
 ## Authentication
 
