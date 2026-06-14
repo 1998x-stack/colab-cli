@@ -1,0 +1,8 @@
+{"eval_id": 3, "eval_name": "ppo-mujoco-debug", "prompt": "My PPO on HalfCheetah-v5 isn't learning at all — reward is stuck at -0.3 and entropy is 8.5 after 25 iterations. I'm using 1 vectorized env, lr=1e-4, 2048 steps per rollout. What's wrong?", "assertions": [
+    {"text": "Identifies num_envs=1 as a key problem — PPO needs 4+ vectorized envs"},
+    {"text": "Identifies lr=1e-4 as too low — recommends 3e-4"},
+    {"text": "Explains that entropy=8.5 means policy is essentially random (not learning)"},
+    {"text": "Recommends SyncVectorEnv or AsyncVectorEnv for parallel envs"},
+    {"text": "Mentions NormalizeObservation wrapper importance for MuJoCo"},
+    {"text": "Suggests reducing num_steps or increasing num_envs for better gradient diversity"}
+  ]}

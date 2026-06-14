@@ -1,0 +1,8 @@
+{"eval_id": 1, "eval_name": "mujoco-td3-setup", "prompt": "I need to set up HalfCheetah-v5 for TD3 training. What wrappers do I need? What's the obs/act dimensions? And what's the action range — is it always [-1, 1]?", "assertions": [
+    {"text": "Correctly states HalfCheetah-v5 obs_dim=17, act_dim=6"},
+    {"text": "Correctly states action range [-1, 1] for HalfCheetah-v5"},
+    {"text": "Explains that action bounds vary across MuJoCo envs — NOT always [-1,1]"},
+    {"text": "Recommends ClipAction + NormalizeObservation + TransformObservation wrapper stack"},
+    {"text": "Specifies correct wrapper order: ClipAction first, then NormalizeObservation, then TransformObservation"},
+    {"text": "Recommends reading max_action from env.action_space rather than hardcoding"}
+  ]}

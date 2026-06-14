@@ -1,0 +1,8 @@
+{"eval_id": 2, "eval_name": "atari-ram-mode", "prompt": "I'm building an Atari agent with an MLP (not CNN). Can I use Atari environments without pixels? What's the observation like for RAM mode — do I need ALE/Pong-ram-v5 or something else?", "assertions": [
+    {"text": "Explains RAM mode uses obs_type='ram' parameter, NOT a separate env ID"},
+    {"text": "States that ALE/Pong-ram-v5 does NOT exist"},
+    {"text": "Mentions need to import ale_py before gym.make()"},
+    {"text": "States RAM observation shape is (128,) uint8"},
+    {"text": "Notes that AtariPreprocessing is NOT needed for RAM mode"},
+    {"text": "Provides correct API call: gym.make('ALE/Pong-v5', obs_type='ram')"}
+  ]}

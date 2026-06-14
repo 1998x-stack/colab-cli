@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "Identifies num_envs=1 as a key problem \u2014 PPO needs 4+ vectorized envs",
+      "passed": true,
+      "evidence": "States it as 'Primary Cause' and 'root cause'; shows SyncVectorEnv with 4+ envs"
+    },
+    {
+      "text": "Identifies lr=1e-4 as too low \u2014 recommends 3e-4",
+      "passed": true,
+      "evidence": "\"1e-4 is low for MuJoCo PPO. CleanRL defaults to 3e-4\""
+    },
+    {
+      "text": "Explains that entropy=8.5 means policy is essentially random (not learning)",
+      "passed": true,
+      "evidence": "\"Entropy 8.5 = exactly the theoretical entropy of a 6-dim standard Gaussian \u2014 the policy has not updated at all from initialization\""
+    },
+    {
+      "text": "Recommends SyncVectorEnv or AsyncVectorEnv for parallel envs",
+      "passed": true,
+      "evidence": "Shows SyncVectorEnv code with make_env factory pattern"
+    },
+    {
+      "text": "Mentions NormalizeObservation wrapper importance for MuJoCo",
+      "passed": true,
+      "evidence": "Lists as secondary issue: \"ClipAction \u2192 NormalizeObservation \u2192 TransformObservation\" in make_env"
+    },
+    {
+      "text": "Suggests reducing num_steps or increasing num_envs for better gradient diversity",
+      "passed": true,
+      "evidence": "\"Consider reducing num_steps to 512 with more envs for more frequent, diverse updates\""
+    }
+  ],
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  }
+}

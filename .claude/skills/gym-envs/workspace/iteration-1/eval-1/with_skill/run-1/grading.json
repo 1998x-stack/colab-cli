@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly states HalfCheetah-v5 obs_dim=17, act_dim=6",
+      "passed": true,
+      "evidence": "States obs dim=17, act dim=6 with explicit code"
+    },
+    {
+      "text": "Correctly states action range [-1, 1] for HalfCheetah-v5",
+      "passed": true,
+      "evidence": "\"action range is [-1, 1]\" with note about Box continuous"
+    },
+    {
+      "text": "Explains that action bounds vary across MuJoCo envs \u2014 NOT always [-1,1]",
+      "passed": true,
+      "evidence": "Provides table: InvertedPendulum [-3,3], Pusher [-2,2], Humanoid [-0.4,0.4]"
+    },
+    {
+      "text": "Recommends ClipAction + NormalizeObservation + TransformObservation wrapper stack",
+      "passed": true,
+      "evidence": "Shows all three wrappers with numbered order"
+    },
+    {
+      "text": "Specifies correct wrapper order: ClipAction first, then NormalizeObservation, then TransformObservation",
+      "passed": true,
+      "evidence": "Numbered 1-3: ClipAction, NormalizeObservation, TransformObservation"
+    },
+    {
+      "text": "Recommends reading max_action from env.action_space rather than hardcoding",
+      "passed": true,
+      "evidence": "\"Always read from live env: max_action = float(env.action_space.high[0])\""
+    }
+  ],
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  }
+}

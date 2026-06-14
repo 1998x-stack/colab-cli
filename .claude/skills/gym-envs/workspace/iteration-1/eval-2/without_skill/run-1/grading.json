@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "Explains RAM mode uses obs_type='ram' parameter, NOT a separate env ID",
+      "passed": false,
+      "evidence": "Lists PongRam-v5 and ALE/Pong-ram-v5 as separate env IDs \u2014 both wrong in gymnasium 1.x"
+    },
+    {
+      "text": "States that ALE/Pong-ram-v5 does NOT exist",
+      "passed": false,
+      "evidence": "Recommends ALE/Pong-ram-v5 as Option 2 \u2014 this env ID does not exist"
+    },
+    {
+      "text": "Mentions need to import ale_py before gym.make()",
+      "passed": false,
+      "evidence": "No import ale_py in any code example"
+    },
+    {
+      "text": "States RAM observation shape is (128,) uint8",
+      "passed": true,
+      "evidence": "\"obs: (128,) uint8\" in both options"
+    },
+    {
+      "text": "Notes that AtariPreprocessing is NOT needed for RAM mode",
+      "passed": false,
+      "evidence": "Does not mention AtariPreprocessing at all"
+    },
+    {
+      "text": "Provides correct API call: gym.make('ALE/Pong-v5', obs_type='ram')",
+      "passed": false,
+      "evidence": "All API calls are wrong \u2014 PongRam-v5 and ALE/Pong-ram-v5"
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 5,
+    "total": 6,
+    "pass_rate": 0.16666666666666666
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "skill_name": "gym-envs",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to set up HalfCheetah-v5 for TD3 training. What wrappers do I need? What's the obs/act dimensions? And what's the action range — is it always [-1, 1]?",
+      "expected_output": "Identifies HalfCheetah-v5 specs (obs=17, act=6, action=[-1,1]), recommends ClipAction + NormalizeObservation + TransformObservation wrapper stack in correct order, and notes that action bounds vary per env (not always [-1,1]).",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I'm building an Atari agent with an MLP (not CNN). Can I use Atari environments without pixels? What's the observation like for RAM mode — do I need ALE/Pong-ram-v5 or something else?",
+      "expected_output": "Explains RAM mode via obs_type='ram' parameter (not separate env ID), notes obs=(128,) uint8, mentions import ale_py requirement, and that no AtariPreprocessing is needed for RAM.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "My PPO on HalfCheetah-v5 isn't learning at all — reward is stuck at -0.3 and entropy is 8.5 after 25 iterations. I'm using 1 vectorized env, lr=1e-4, 2048 steps per rollout. What's wrong?",
+      "expected_output": "Diagnoses three issues: (1) num_envs=1 too few for PPO — need 4+, (2) lr=1e-4 too low — recommend 3e-4, (3) suggests checking NormalizeObservation wrapper is applied. References the gotcha about PPO needing vectorized envs.",
+      "files": []
+    }
+  ]
+}

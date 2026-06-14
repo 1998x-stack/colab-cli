@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "Explains RAM mode uses obs_type='ram' parameter, NOT a separate env ID",
+      "passed": true,
+      "evidence": "Shows correct gym.make('ALE/Pong-v5', obs_type='ram') and explicitly lists ALE/Pong-ram-v5 as WRONG"
+    },
+    {
+      "text": "States that ALE/Pong-ram-v5 does NOT exist",
+      "passed": true,
+      "evidence": "Explicitly lists both ALE/Pong-ram-v5 and Pong-ram-v5 as wrong with ERROR comments"
+    },
+    {
+      "text": "Mentions need to import ale_py before gym.make()",
+      "passed": true,
+      "evidence": "\"import ale_py  # MUST import before gym.make() \u2014 registers ALE namespace\""
+    },
+    {
+      "text": "States RAM observation shape is (128,) uint8",
+      "passed": true,
+      "evidence": "\"obs: Box(128,) uint8 \u2014 128 bytes of raw Atari 2600 RAM\""
+    },
+    {
+      "text": "Notes that AtariPreprocessing is NOT needed for RAM mode",
+      "passed": true,
+      "evidence": "\"No wrappers needed \u2014 no AtariPreprocessing, no FrameStack, no grayscale conversion\""
+    },
+    {
+      "text": "Provides correct API call: gym.make('ALE/Pong-v5', obs_type='ram')",
+      "passed": true,
+      "evidence": "Full code example with obs_type='ram' and full_action_space=False"
+    }
+  ],
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  }
+}

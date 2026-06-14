@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "Identifies num_envs=1 as a key problem \u2014 PPO needs 4+ vectorized envs",
+      "passed": false,
+      "evidence": "Mentions single env as Issue 4 (lowest priority). Primary diagnosis is 'too few timesteps' which misidentifies the root cause"
+    },
+    {
+      "text": "Identifies lr=1e-4 as too low \u2014 recommends 3e-4",
+      "passed": false,
+      "evidence": "Does not mention learning rate at all"
+    },
+    {
+      "text": "Explains that entropy=8.5 means policy is essentially random (not learning)",
+      "passed": true,
+      "evidence": "\"Entropy 8.5 = 1.42 * 6 (6-dimensional Gaussian with std=1 at init)\""
+    },
+    {
+      "text": "Recommends SyncVectorEnv or AsyncVectorEnv for parallel envs",
+      "passed": true,
+      "evidence": "Suggests '8 vectorized envs' in fix list"
+    },
+    {
+      "text": "Mentions NormalizeObservation wrapper importance for MuJoCo",
+      "passed": true,
+      "evidence": "\"Normalize observations with running mean/std\" in fix list"
+    },
+    {
+      "text": "Suggests reducing num_steps or increasing num_envs for better gradient diversity",
+      "passed": false,
+      "evidence": "Does not discuss num_steps/env tradeoff"
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 3,
+    "total": 6,
+    "pass_rate": 0.5
+  }
+}
