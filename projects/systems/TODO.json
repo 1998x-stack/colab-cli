@@ -8,9 +8,9 @@
     "cuda": "12.8",
     "colab_tier": "free",
     "total_experiments": 28,
-    "done": 16,
+    "done": 19,
     "ready": 0,
-    "planned": 12
+    "planned": 9
   },
   "experiments": [
     {
@@ -424,7 +424,7 @@
       "description": "Verify model can memorize 2-16 examples to near-zero loss. Catches: wrong loss function, bad init, broken data pipeline, gradient flow issues. Karpathy: most important debugging technique.",
       "expected_magnitude": "Catches 80% of structural bugs before full training",
       "code_complexity": "~15 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 1,
       "benchmark_script": null,
       "output_dir": "projects/systems/dl-training/output/dltrain-001/",
@@ -449,7 +449,7 @@
       "description": "For K-class softmax, initial loss must be -ln(1/K). CIFAR-10 → ~2.30. If wildly different, init or loss function is wrong.",
       "expected_magnitude": "Instant diagnosis of init bugs",
       "code_complexity": "~5 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 1,
       "benchmark_script": null,
       "output_dir": "projects/systems/dl-training/output/dltrain-002/",
@@ -465,7 +465,7 @@
       "sources": [
         "http://karpathy.github.io/2019/04/25/recipe/"
       ],
-      "notes": "Compare kaiming_uniform vs xavier_uniform initial loss on transformer — 17× grad norm difference."
+      "notes": "Compare kaiming_uniform vs xavier_uniform initial loss on transformer — 17× grad norm difference. N(0, 0.01) gives exact -ln(1/K)=2.30 but tiny grad_norm (0.1). xavier_uniform is best balance (2.34 loss, 1.6 grad). N(0, 1.0) diverges catastrophically (loss=2051, grad=662)."
     },
     {
       "id": "dltrain-003",
@@ -666,7 +666,7 @@
       "description": "view() requires contiguous memory; fails silently or crashes on permuted tensors. reshape() copies when needed. Prefer reshape() unless you explicitly want view-only error.",
       "expected_magnitude": "Silent batch-dimension corruption if wrong",
       "code_complexity": "~10 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 3,
       "benchmark_script": null,
       "output_dir": "projects/systems/dl-training/output/dltrain-011/",
@@ -753,7 +753,7 @@
     "dl-training": {
       "label": "DL Training Tricks & Methodology",
       "count": 12,
-      "done": 0,
+      "done": 3,
       "icon": "🎓"
     }
   },
