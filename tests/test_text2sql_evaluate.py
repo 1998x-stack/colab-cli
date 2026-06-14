@@ -70,14 +70,14 @@ def test_execute_sql_table_not_found():
 def test_execute_sql_timeout():
     """A slow Cartesian product should time out."""
     create_tables = ["CREATE TABLE a (x int)", "CREATE TABLE b (y int)"]
-    for i in range(200):
+    for i in range(100):
         create_tables.append(f"INSERT INTO a VALUES ({i})")
         create_tables.append(f"INSERT INTO b VALUES ({i})")
 
     success, result = execute_with_timeout(
         create_tables,
-        "SELECT * FROM a CROSS JOIN b CROSS JOIN a c CROSS JOIN b d",
-        timeout=1,
+        "SELECT COUNT(*) FROM a CROSS JOIN b CROSS JOIN a c CROSS JOIN b d",
+        timeout=0.5,
     )
     assert not success
     assert result == "__TIMEOUT__", f"Got: {result}"
