@@ -380,3 +380,121 @@ cached = os.path.join(data_dir, "train.pt")
 def __init__(self, ..., name="train"):
     cached = os.path.join(data_dir, f"{name}.pt")
 ```
+
+---
+
+## CUDA Dark Corners — cross-project findings
+
+Verified on Colab T4 (CUDA 12.8, PyTorch 2.11.0+cu128). 19 experiments across 8 categories. See `projects/systems/cuda-dark-corners/` for full results.
+
+### cross_entropy + permute is 17-118× slower for LLM logits
+
+`F.cross_entropy(logits.permute(0, 2, 1), targets)` converts LLM-standard (B, S, V) layout to cross_entropy's (N, C) expectation. The internal permute triggers slow reduction kernels.
+
+At B=1, S=128, V=50257:
+- CE+permute: **51.6 ms**
+- log_softmax+gather: **0.45 ms** (114.7× faster)
+
+The fix:
+```python
+# ❌ 51.6 ms — permute triggers slow kernel
+loss = F.cross_entropy(logits.permute(0, 2, 1), targets)
+
+# ✅ 0.45 ms — no layout change needed
+log_probs = F.log_softmax(logits, dim=-1)
+loss = F.nll_loss(log_probs.reshape(-1, vocab_size), targets.reshape(-1))
+```
+
+`.contiguous()` after permute does NOT help — the bottleneck is the reduction kernel path, not memory contiguity. Smaller batches are affected worse (fixed overhead dominates).
+
+**Observed in:** cuda-dark-corners/layout-002 (2026-06-14). Affects ALL LLM training code.
+
+### CUDA 12.8 / PyTorch 2.11 fixed multiple "classic" traps
+
+The following well-documented traps were **NOT observed** on this stack. Old optimization advice referencing them may be obsolete:
+
+| Trap (source) | Old expectation | Actual (CUDA 12.8) | Root cause |
+|---------------|----------------|--------------------|------------|
+| Implicit `.contiguous()` copies on non-contiguous op chains | 2-10× slowdown, 5-15 copies | 1.0-1.1×, 1 copy | stride-aware kernels improved |
+| `index_select` 2-6× slower for 2D+ | 2-6× | 1.0-1.2× | index_select gather kernel optimized |
+| FP16 eps=1e-8 NaN within 50-200 steps | NaN in <200 steps | No NaN in 500 steps | AMP `GradScaler` dynamic scaling prevents underflow |
+| CUDA first-call tax ~1.6s | 1.6s | ~389ms | CUDA 12.8 init path optimization |
+| Ad-hoc `.pin_memory()` 1.5-2× slower | 1.5-2× | 0.6-1.2× | CUDA 12.8 internal pinned staging buffer |
+| `torch.compile` 8× worse on non-contiguous `max()` | 8× | **1.0×** (eliminates penalty) | inductor 3-stage→2-stage reduction |
+
+**Implication:** Always verify "known" performance traps on your target CUDA/PyTorch version. Auto-upgrades may have already fixed them.
+
+**Observed in:** cuda-dark-corners (layout-001, layout-003, precision-001, launch-002, transfer-003, compile-002) — 2026-06-14.
+
+### CUDA timing: perf_counter without synchronize() is 3-15× wrong
+
+`time.perf_counter()` without `torch.cuda.synchronize()` measures CPU kernel launch latency (~15-70µs), NOT GPU execution time. The error grows with kernel duration:
+
+| Matmul | No sync (µs) | Actual GPU (CUDA events) | **Underestimate** |
+|--------|-------------|--------------------------|-------------------|
+| 64×64 | 27 | 83 | 3.1× |
+| 256×256 | 27 | 207 | **7.7×** |
+| 1024×1024 | 71 | 525 | **7.4×** |
+
+Always use `torch.cuda.Event` for GPU benchmarks:
+```python
+start = torch.cuda.Event(enable_timing=True)
+end = torch.cuda.Event(enable_timing=True)
+start.record()
+# ... GPU work ...
+end.record()
+torch.cuda.synchronize()
+ms = start.elapsed_time(end)
+```
+
+**Observed in:** cuda-dark-corners/sync-003 (2026-06-14). Affects ALL GPU benchmarking code.
+
+### N(0, 1.0) init causes catastrophic divergence
+
+Initializing a simple MLP with `N(0, 1.0)` produces initial loss of 2051 (expected: 2.30 for K=10). Kaiming uniform and Xavier uniform both give ~2.31-2.34.
+
+Always run the "loss at init" sanity check before full training:
+```python
+# K-class softmax: initial loss should be -ln(1/K)
+# K=10 → 2.3026. If > 3.0, init or loss function is broken.
+loss = F.cross_entropy(model(randn_input), randn_labels)
+assert abs(loss.item() - 2.3026) < 0.5, f"Bad init: loss={loss.item():.2f}"
+```
+
+**Observed in:** dl-training/dltrain-002 (2026-06-14). Karpathy Recipe #2.
+
+### Overfit single batch is the most efficient debug check
+
+Before training on full dataset, verify the model can memorize 16 fixed samples to near-zero loss (<0.01 in 200 steps). Remove dropout, weight decay, and augmentation for this test. Catches ~80% of structural bugs.
+
+**Observed in:** dl-training/dltrain-001 (2026-06-14). Karpathy Recipe #1.
+
+### view() crashes on permuted tensors; reshape() doesn't
+
+After `.permute()`, `.transpose()`, or `.T`, tensors become non-contiguous. `.view()` requires contiguous memory and crashes with `RuntimeError`. `.reshape()` copies internally when needed — always safe.
+
+```python
+x = x.permute(0, 2, 1)
+x = x.view(-1)      # ❌ RuntimeError
+x = x.reshape(-1)   # ✅ works (copies if needed)
+```
+
+**Observed in:** dl-training/dltrain-011 (2026-06-14). Karpathy's 6 common mistakes. Particularly dangerous in transformer code with frequent permute/transpose.
+
+### T4 Tensor Cores utilization peaks at 37%
+
+T4's 65 TFLOPS FP16 theoretical peak is unreachable in practice for single matmul. Peak observed: 23.8 TFLOPS at 3072×3072 (37% utilization). FP16 is still 6.4× faster than FP32 at 8192×8192. Tensor Cores start activating around 384×384.
+
+For maximum throughput on T4: target matmul dimensions ≥768, use FP16 (not BF16 — SM 7.5 doesn't support), and avoid mixed small/large matmuls in the same model.
+
+**Observed in:** cuda-dark-corners/precision-002 (2026-06-14).
+
+### GPU is NOT always faster — know the crossover
+
+On T4:
+- **Matmul**: GPU starts winning at ~128×128. At 64×64, CPU is faster.
+- **Element-wise ops** (relu, add): GPU only wins above ~100K elements. Below that, kernel launch overhead dominates.
+
+For small-tensor workloads (token-level operations, small batch linear layers), CPU may be faster. Always benchmark before assuming GPU > CPU.
+
+**Observed in:** cuda-dark-corners/launch-001 (2026-06-14).

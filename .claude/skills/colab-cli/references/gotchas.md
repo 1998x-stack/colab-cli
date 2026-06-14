@@ -599,3 +599,52 @@ If `whoami` fails with "failed to refresh credentials" but `sessions` works: the
 First run opens a browser URL for Google OAuth. Complete it in your browser. The token is cached at `~/.colab-cli-oauth-config.json`.
 
 If auth fails, the CLI prints the URL again. No explicit `colab login` command exists — just run any session command and auth will trigger automatically.
+
+---
+
+## Large-scale benchmark deployment (2026-06-14)
+
+### GPU quota exhausts across ALL accounts simultaneously
+
+When running 19+ GPU experiments across a single session, all 4 free-tier accounts exhausted GPU quota (412 TooManyAssignmentsError). The 12-24h cooldown applies to ALL accounts, not per-account. Lesson: spread GPU usage across days, not hours. For mass experiments, use Kaggle (30h/week GPU, more reliable).
+
+### Quick benchmarks should run inline, not detached
+
+For benchmarks that complete in <3 minutes, running inline within a single `colab exec --timeout <N>` is safer than launching detached subprocesses and polling. The inline exec holds the WebSocket open, providing live output. Detached subprocesses may complete but their output files vanish when the session dies before the next cron fetch.
+
+```bash
+# Better for <3 min benchmarks:
+cat <<'PYEOF' | colab exec --timeout 240
+import subprocess, sys
+proc = subprocess.Popen([sys.executable, "-u", "/content/benchmark.py"],
+    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
+stdout, _ = proc.communicate(timeout=220)
+print(stdout.decode())
+PYEOF
+```
+
+### First Colab session is lost to data download overhead
+
+CIFAR-10 download (~170MB) + CUDA JIT = 7-10 min overhead. Combined with ~10 min GPU window, the first session rarely completes training. Use a short warmup session to cache data at `/content/data/`, then re-provision.
+
+### Config B (HTTP CONNECT) is more reliable for full-session workflows
+
+When running upload→exec→download chains, Config B (`HTTPS_PROXY=http://`, `ALL_PROXY=socks5://`) was consistently more reliable than Config A (`HTTPS_PROXY=socks5://` + `no_proxy`). Config A's no_proxy exclusion for `*.prod.colab.dev` causes SSL/EOF errors on upload/download REST calls. When in doubt, start with Config B.
+
+### Session lives 30+ minutes with active WebSocket
+
+Despite the documented ~10 min window, one session survived 30+ minutes with continuous detached benchmark runs and periodic `colab exec` checks. The key: keep the WebSocket active every few minutes. Even a quick `echo 'print("alive")' | colab exec` resets the ~2-3 min post-WebSocket death timer.
+
+### Cron watchtower for detached benchmarks
+
+For benchmarks lasting 3+ minutes, set a cron watchtower that fetches outputs every 2 minutes via REST (`colab download`). This survives individual WebSocket drops:
+
+```bash
+CronCreate(
+    cron="*/2 * * * *",
+    prompt="Fetch results from Colab: 1. tar /content/cuda-dark-corners-output/ 2. colab download tar 3. report tail. Skip if 404/401.",
+    recurring=True,
+)
+```
+
+Cancel the cron when benchmarks complete to avoid noise.
