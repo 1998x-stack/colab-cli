@@ -69,6 +69,9 @@ def main():
         if not context or not question or not answer:
             continue
         tokenized = format_and_tokenize(tokenizer, context, question, answer)
+        # Skip if prompt fills entire context window (no room for answer)
+        if (tokenized["labels"] == -100).all():
+            continue
         examples.append(tokenized)
 
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
