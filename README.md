@@ -125,6 +125,7 @@ A growing collection of ML experiments trained on free-tier Colab/Kaggle GPUs.
 | [`vllm-compare`](./projects/nlp/vllm-compare/) | vLLM inference benchmarks | T4 |
 | [`vllm-rag`](./projects/nlp/vllm-rag/) | RAG pipeline with vLLM + ChromaDB | T4 |
 | [`hotpotqa-reasoning`](./projects/nlp/hotpotqa-reasoning/) | CoT vs ReAct prompting | T4 |
+| [`text2sql_finetune`](./projects/nlp/text2sql_finetune/) | Qwen3-0.6B LoRA for Text-to-SQL | T4 |
 
 ### Graph Neural Networks (`projects/gnn/`)
 
@@ -231,7 +232,7 @@ docs/                            # Documentation
 ├── core-flows.md                # Command-level sequence diagrams
 ├── google-colab-cli-source-analysis.md  # Full source architecture (v0.5.11)
 ├── guides/                      # How-to guides (6 docs)
-├── reference/                   # Technical deep-dives (5 docs)
+├── reference/                   # Technical deep-dives (8 docs)
 └── google-workspace-mcp/        # Google Workspace MCP integration
 papers/                          # Research paper notes
 ├── s1/                          # s1: Simple test-time scaling
@@ -282,7 +283,7 @@ index.md                         # Full project index with descriptions
 - [`docs/core-flows.md`](./docs/core-flows.md) — Command-level sequence diagrams (new, exec, upload, keep-alive, relay, stop)
 - [`docs/google-colab-cli-source-analysis.md`](./docs/google-colab-cli-source-analysis.md) — Full source code architecture reference (v0.5.11)
 - [`docs/guides/`](./docs/guides/) — How-to guides (Colab CLI, multi-account, quantization, session monitoring)
-- [`docs/reference/`](./docs/reference/) — Technical deep-dives (model gotchas, Kaggle analysis)
+- [`docs/reference/`](./docs/reference/) — Technical deep-dives (model gotchas, Kaggle analysis, CUDA dark corners, DL training tricks, AutoDL platform)
 - [`.claude/skills/colab-cli/references/gotchas.md`](./.claude/skills/colab-cli/references/gotchas.md) — 22 field-tested gotchas
 - [`.claude/skills/colab-cli/references/workflows.md`](./.claude/skills/colab-cli/references/workflows.md) — Full workflow patterns
 - [`projects/rl/REPORT_ddpg_vs_td3.md`](./projects/rl/REPORT_ddpg_vs_td3.md) — DDPG vs TD3 benchmark report
