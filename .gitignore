@@ -46,3 +46,6 @@ output-v4/
 .vscode/
 *.swp
 *.swo
+projects/alphago/launch.py
+.claude/.claude/
+tmp/
