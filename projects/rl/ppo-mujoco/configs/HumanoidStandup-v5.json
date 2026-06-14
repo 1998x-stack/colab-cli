@@ -1,6 +1,6 @@
 {
   "env_id": "HumanoidStandup-v5",
-  "obs_dim": 376,
+  "obs_dim": 348,
   "n_actions": 17,
   "network": "mlp-large",
   "total_timesteps": 2000000

@@ -1,6 +1,6 @@
 {
   "env_id": "Reacher-v5",
-  "obs_dim": 11,
+  "obs_dim": 10,
   "n_actions": 2,
   "network": "mlp-small",
   "total_timesteps": 500000

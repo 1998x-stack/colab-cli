@@ -1,6 +1,6 @@
 {
   "env_id": "Ant-v5",
-  "obs_dim": 27,
+  "obs_dim": 105,
   "n_actions": 8,
   "network": "mlp-large",
   "total_timesteps": 1000000

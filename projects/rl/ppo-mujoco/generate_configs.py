@@ -10,14 +10,14 @@ def known_mujoco_envs():
         ("HalfCheetah-v5", 17, 6, "mlp-medium", 1000000),
         ("Hopper-v5", 11, 3, "mlp-medium", 1000000),
         ("Walker2d-v5", 17, 6, "mlp-medium", 1000000),
-        ("Ant-v5", 27, 8, "mlp-large", 1000000),
-        ("Humanoid-v5", 376, 17, "mlp-large", 2000000),
-        ("HumanoidStandup-v5", 376, 17, "mlp-large", 2000000),
+        ("Ant-v5", 105, 8, "mlp-large", 1000000),
+        ("Humanoid-v5", 348, 17, "mlp-large", 2000000),
+        ("HumanoidStandup-v5", 348, 17, "mlp-large", 2000000),
         ("Swimmer-v5", 8, 2, "mlp-small", 500000),
         ("Pusher-v5", 23, 7, "mlp-medium", 1000000),
-        ("Reacher-v5", 11, 2, "mlp-small", 500000),
+        ("Reacher-v5", 10, 2, "mlp-small", 500000),
         ("InvertedPendulum-v5", 4, 1, "mlp-small", 200000),
-        ("InvertedDoublePendulum-v5", 11, 1, "mlp-medium", 500000),
+        ("InvertedDoublePendulum-v5", 9, 1, "mlp-medium", 500000),
     ]
 
 
