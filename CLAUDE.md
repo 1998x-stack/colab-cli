@@ -22,8 +22,8 @@ The sections below provide project-specific context and constraints that the ski
 .claude/skills/
 ├── colab-cli/             # Colab GPU VM management from terminal
 │   ├── SKILL.md             # Full workflow: provision, exec, monitor, multi-account
-│   ├── references/          # gotchas.md (22 items), workflows.md
-│   └── scripts/             # launch.py, check_progress.py, launch_proxy.py
+│   ├── references/          # gotchas.md (45 items), workflows.md
+│   └── scripts/             # launch.py, check_progress.py, launch_proxy.py, log_utils.py, plot_utils.py, vm-proxy-bootstrap.py, drivemount_auto.py, keepalive/
 └── kaggle-cli/            # Kaggle Notebooks GPU training (push model, REST API)
     ├── SKILL.md             # Full workflow: push, monitor, download, multi-account
     ├── references/          # gotchas.md (16 items)
@@ -100,7 +100,7 @@ Which works changes per session — flip and retry.
 
 Config B handles the full workflow (new, upload, exec, download) without switching — when in doubt, start with B.
 
-REST operations (`colab new`, `colab stop`, `colab sessions`, `colab download`) always use the proxy. Only `colab exec`/`colab upload` might need `no_proxy`.
+REST operations (`colab new`, `colab stop`, `colab sessions`) go to `colab.pa.googleapis.com` — always use the proxy. `colab exec`, `colab upload`, `colab download` go to `*.prod.colab.dev` — affected by `no_proxy` in Config A, proxied in Config B.
 
 **SOCKS5 needs PySocks for REST:** `pip install requests[socks]` or use `http://` style for REST.
 

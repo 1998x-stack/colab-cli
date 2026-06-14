@@ -135,8 +135,6 @@ Check session health after any connectivity error — transient SSL/connection e
 colab sessions && colab status
 ```
 
-See `docs/session-health-monitoring.md` for full state machine and auto-recovery architecture.
-
 ## Executing code
 
 ### Running a script (`colab exec -f`)
@@ -231,7 +229,7 @@ No session management, no uploads, no teardown. Best for batch jobs, benchmarks,
 
 ## Gotchas (top criticals)
 
-Read `references/gotchas.md` for the full list (22 field-tested items). The ones that will waste the most time if missed:
+Read `references/gotchas.md` for the full list (45 field-tested items). The ones that will waste the most time if missed:
 
 1. **Proxy required from China.** REST and WebSocket use different network paths with different proxy behavior. Use the two-config flip pattern from Proxy setup above.
 2. **`colab exec -f` reads LOCAL files (relative to CWD), not remote VM files.** Upload is only needed for scripts spawned as subprocesses by the exec'd script.
@@ -393,3 +391,4 @@ The Colab VM's working directory is `/content/`. Uploaded files with relative pa
 - `docs/websocket-stability-china.md` — China WebSocket stability: NAT/GFW/proxy layer analysis, ping gap, mitigation
 - `docs/core-flows.md` — Command-level sequence diagrams (new, exec, upload, keep-alive, relay handoff, stop)
 - `docs/google-colab-cli-source-analysis.md` — Full source code architecture reference (v0.5.11)
+- `docs/guides/colab-drivemount.md` — Google Drive mount: OAuth flow, automation, 120s timeout, BUSY state, gotchas (tested 2026-06-14)
