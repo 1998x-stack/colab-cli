@@ -34,17 +34,20 @@ if os.path.exists(adapter_path):
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 
     def extract_sql(text):
-        pattern = r"<\|im_start\|>assistant\n(.*?)<\|im_end\|>"
+        # Extract content between assistant and end markers
+        pattern = r"<\|im_start\|>assistant\n(.*?)(?:<\|im_end\|>|$)"
         matches = re.findall(pattern, text, re.DOTALL)
-        if matches:
-            return matches[-1].strip()
-        idx = text.rfind("assistant\n")
-        if idx != -1:
-            return text[idx + len("assistant\n"):].strip()
-        return text.strip()
+        raw = matches[-1].strip() if matches else ""
+        if not raw:
+            idx = text.rfind("assistant\n")
+            raw = text[idx + len("assistant\n"):].strip() if idx != -1 else text.strip()
+        # Strip Qwen3 thinking tags
+        raw = re.sub(r"<think>.*?</think>\s*", "", raw, flags=re.DOTALL).strip()
+        return raw
 
     def parse_create_table(sql):
-        return re.findall(r"CREATE\s+TABLE\s+[^;]+;", sql, re.IGNORECASE)
+        # Parenthesis-bounded match — avoids over-matching into question text
+        return re.findall(r"CREATE\s+TABLE\s+\w+\s*\([^)]+\)", sql, re.IGNORECASE)
 
     def execute_sql(create_tables, query):
         conn = sqlite3.connect(":memory:")
@@ -99,7 +102,7 @@ if os.path.exists(adapter_path):
         with torch.no_grad():
             generated = eval_model.generate(
                 input_ids=prompt_tensor, attention_mask=attn_tensor,
-                max_new_tokens=256, do_sample=False,
+                max_new_tokens=512, do_sample=False,
                 pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
             )
         full_output = tokenizer.decode(generated[0], skip_special_tokens=False)
@@ -167,9 +170,10 @@ if os.path.exists(adapter_path):
     for src in [f"{PROJECT_DIR}/logs/train.log", f"{PROJECT_DIR}/logs/metrics.csv",
                 f"{PROJECT_DIR}/logs/eval.log", f"{OUTPUT_DIR}/eval_report.json"]:
         if os.path.exists(src):
-            dst = os.path.join(OUTPUT_DIR, os.path.relpath(src, PROJECT_DIR))
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            shutil.copy2(src, dst)
+            dst = os.path.join(OUTPUT_DIR, os.path.basename(src))
+            if os.path.abspath(src) != os.path.abspath(dst):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(src, dst)
 
     # Tar
     subprocess.check_call([

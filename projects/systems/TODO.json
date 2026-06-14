@@ -8,9 +8,9 @@
     "cuda": "12.8",
     "colab_tier": "free",
     "total_experiments": 28,
-    "done": 19,
+    "done": 27,
     "ready": 0,
-    "planned": 9
+    "planned": 1
   },
   "experiments": [
     {
@@ -474,7 +474,7 @@
       "description": "Train same model with OneCycleLR vs constant LR. OneCycleLR reaches SOTA accuracy in 1/10 the iterations by cycling LR up then cosine-annealing down.",
       "expected_magnitude": "2-10× convergence speedup",
       "code_complexity": "~30 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 1,
       "benchmark_script": null,
       "output_dir": "projects/systems/dl-training/output/dltrain-003/",
@@ -499,7 +499,7 @@
       "description": "Same weight_decay value, different internal behavior. Adam applies L2 before adaptive normalization; AdamW applies true weight decay after. Demonstrated on small CNN + CIFAR-10.",
       "expected_magnitude": "Noticeably better generalization with AdamW",
       "code_complexity": "~20 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 2,
       "benchmark_script": null,
       "output_dir": "projects/systems/dl-training/output/dltrain-004/",
@@ -524,9 +524,9 @@
       "description": "Maintain shadow weights with exponential moving average (β=0.999). Use shadow weights at eval. ~5 lines of code, zero training cost.",
       "expected_magnitude": "+0.5-1% accuracy, zero training cost",
       "code_complexity": "~10 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 2,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/dl-training/benchmark_dltrain_005.py",
       "output_dir": "projects/systems/dl-training/output/dltrain-005/",
       "reference_doc": "docs/reference/dl-training-tricks.md#2.6",
       "tags": [
@@ -538,7 +538,7 @@
       "colab_time_estimate_min": 5,
       "dependencies": [],
       "sources": [],
-      "notes": "Best ROI among all regularization techniques."
+      "notes": "Best ROI among all regularization techniques. Result: SWA slightly higher final accuracy."
     },
     {
       "id": "dltrain-006",
@@ -547,7 +547,7 @@
       "description": "CrossEntropyLoss(label_smoothing=0.1). Prevents model from assigning extreme probabilities. In Transformers, prevents attention collapse where attention concentrates on too few tokens.",
       "expected_magnitude": "+0.3-1% accuracy, better calibration",
       "code_complexity": "~10 lines (one parameter change)",
-      "status": "planned",
+      "status": "done",
       "priority": 2,
       "benchmark_script": null,
       "output_dir": "projects/systems/dl-training/output/dltrain-006/",
@@ -584,7 +584,7 @@
       "colab_time_estimate_min": 8,
       "dependencies": [],
       "sources": [],
-      "notes": "Already observed in AlexNet project. Test with CIFAR-10: 20 epochs with vs without augmentation."
+      "notes": "Already observed in AlexNet project. Test with CIFAR-10: 20 epochs with vs without augmentation. Attempted 2026-06-14: 3 sessions died before completing (8 min compute + data download exceeds ~10 min Colab GPU window). Needs Kaggle or longer session."
     },
     {
       "id": "dltrain-008",
@@ -593,9 +593,9 @@
       "description": "Linear/Conv bias immediately subtracted by BN running mean. It learns nothing and wastes compute. Always set bias=False before BN.",
       "expected_magnitude": "Wasted parameters, subtle training instability",
       "code_complexity": "~10 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 3,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/dl-training/benchmark_dltrain_008.py",
       "output_dir": "projects/systems/dl-training/output/dltrain-008/",
       "reference_doc": "docs/reference/dl-training-tricks.md#6.1",
       "tags": [
@@ -607,7 +607,7 @@
       "colab_time_estimate_min": 2,
       "dependencies": [],
       "sources": [],
-      "notes": "One of Karpathy 6 common mistakes."
+      "notes": "Karpathy 6 common mistakes. Result: 128 dead params with bias+batchnorm, no accuracy difference."
     },
     {
       "id": "dltrain-009",
@@ -616,7 +616,7 @@
       "description": "Start with tiny LR, exponentially increase each batch, plot loss. Pick LR at steepest descent (~1/10 of divergence point). Beats guessing or grid search.",
       "expected_magnitude": "Saves 3-5 wasted Colab sessions",
       "code_complexity": "~25 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 2,
       "benchmark_script": null,
       "output_dir": "projects/systems/dl-training/output/dltrain-009/",
@@ -641,7 +641,7 @@
       "description": "Average checkpoints from last ~25% of training. PyTorch native: torch.optim.swa_utils.AveragedModel. Finds flatter minima with better generalization.",
       "expected_magnitude": "+1-2% accuracy, negligible overhead",
       "code_complexity": "~15 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 2,
       "benchmark_script": null,
       "output_dir": "projects/systems/dl-training/output/dltrain-010/",
@@ -690,7 +690,7 @@
       "description": "Applying weight_decay to bias terms and BN gamma/beta harms training. Standard practice: exclude bias & norm params from weight decay via param groups.",
       "expected_magnitude": "Slightly worse generalization if applied",
       "code_complexity": "~15 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 3,
       "benchmark_script": null,
       "output_dir": "projects/systems/dl-training/output/dltrain-012/",
@@ -753,7 +753,7 @@
     "dl-training": {
       "label": "DL Training Tricks & Methodology",
       "count": 12,
-      "done": 3,
+      "done": 11,
       "icon": "🎓"
     }
   },

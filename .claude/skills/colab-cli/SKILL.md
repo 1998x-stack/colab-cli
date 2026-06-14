@@ -18,9 +18,11 @@ Command-line interface for Google Colab — provision GPU/TPU VMs, run code remo
 
 Colab sessions are **ephemeral Linux VMs** running Jupyter kernels. Official free-tier limits: 12h max session.
 
-The keep-alive daemon (auto-spawned by `colab new`, calls `KeepAliveAssignment` RPC every 60s) is **broken due to an IAM deadlock** — it dies 61 seconds after every session creation. See `docs/colab-gpu-keepalive.md` for the full root-cause analysis.
+The keep-alive daemon (auto-spawned by `colab new`, calls `KeepAliveAssignment` RPC every 60s) is **broken due to an IAM deadlock** — it dies 61 seconds after every session creation. See `docs/reference/colab-gpu-keepalive.md` for the full root-cause analysis.
 
-The **WebSocket connection** (`colab exec`) is the primary liveness signal. While the WebSocket stays open, the session survives — even with a dead keep-alive daemon. The session dies ~2-3 minutes after the last WebSocket closes. From China, WebSocket stability is ~8-12 minutes per connection (see `docs/websocket-stability-china.md`).
+The **WebSocket connection** (`colab exec`) is the primary liveness signal. While the WebSocket stays open, the session survives — even with a dead keep-alive daemon. The session dies ~2-5 minutes (typically ~3 min) after the last WebSocket closes. **Any gap in WebSocket coverage triggers reclamation** — reconnection after a gap does not reliably reset the death timer.
+
+From China, WebSocket connection success rate is ~60% per attempt (3/5 in live tests, 2026-06-14). Stable execution window is 5-8 minutes per connection (see `docs/reference/websocket-stability-china.md`). For sessions >10 minutes, use the relay handoff protocol with redundant watchdog launching (see `docs/reference/colab-gpu-relay-tests.md`).
 
 All `/content/` files vanish when the session ends — download or persist to Drive before that.
 
@@ -60,15 +62,7 @@ colab stop [-s <name>]                 # stop session
 
 Google Colab APIs are blocked in mainland China. The two-path architecture (see Mental model above) means REST and WebSocket need different proxy treatment.
 
-**Try this first** — REST through SOCKS5, WebSocket direct:
-
-```bash
-export HTTPS_PROXY=socks5://127.0.0.1:7890
-export HTTP_PROXY=socks5://127.0.0.1:7890
-export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
-```
-
-**If WebSocket direct fails**, flip — both paths through proxy (WebSocket treated as HTTP CONNECT tunnel):
+**Recommended default (Config B — HTTP CONNECT tunnel):** Both paths through proxy. More reliable for full-session workflows (upload→exec→download). Tested working for all operations on 2026-06-14.
 
 ```bash
 export HTTPS_PROXY=http://127.0.0.1:7890
@@ -76,9 +70,15 @@ export HTTP_PROXY=http://127.0.0.1:7890
 export ALL_PROXY=socks5://127.0.0.1:7890
 ```
 
-Which variant works changes per session — flip and retry. `colab sessions`/`colab new`/`colab stop` are REST-only to `colab.pa.googleapis.com` (always use proxy). `colab exec`/`colab upload`/`colab download` all go to `*.prod.colab.dev` — they are affected by `no_proxy` because of the shared domain, even though upload/download use REST while exec uses WebSocket.
+**Fallback (Config A — SOCKS5 REST, WebSocket direct):** Try if Config B fails for WebSocket connections.
 
-See `docs/websocket-stability-china.md` for the full root-cause analysis.
+```bash
+export HTTPS_PROXY=socks5://127.0.0.1:7890
+export HTTP_PROXY=socks5://127.0.0.1:7890
+export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
+```
+
+Which variant works changes per session — flip and retry. Config A's `no_proxy` exclusion for `*.prod.colab.dev` can cause SSL/EOF errors on upload/download REST calls. When in doubt, start with Config B.
 
 ## Multi-account setup
 
@@ -165,15 +165,17 @@ Two JSON files in the repo root track multi-account state at a glance — check 
 
 Colab sessions are ephemeral. Official free-tier limits: 12h max session, ~90min idle timeout. GPU quota is dynamic — heavy use triggers 12-24h cooldown before GPU becomes available again.
 
-**The 12-15 min effective window** observed from China is WebSocket disconnection through the proxy, NOT Colab killing the session. The keep-alive daemon (auto-spawned by `colab new`, calls `KeepAliveAssignment` RPC via REST every 60s, max 24h) prevents idle timeout. But it does nothing for the exec WebSocket — those are separate network paths.
+**The effective GPU window:** Without active WebSocket coverage, free-tier GPU sessions die 10-12 minutes after creation. With continuous WebSocket coverage (relay chain), sessions can survive hours. The keep-alive daemon (auto-spawned by `colab new`) is broken — it dies at T+61s every session due to IAM deadlock. The WebSocket connection (`colab exec`) IS the liveness signal.
 
-**Failure modes:**
-- **Keep-alive daemon always dead** — IAM deadlock (403 `USER_PROJECT_DENIED`), daemon exits at T+61s every session. Session relies on WebSocket for liveness.
-- WebSocket handshake failure (~20-30% of exec attempts) — proxy can't establish WSS tunnel
-- WebSocket mid-exec disconnect — NAT timeout or GFW RST, exec hangs then `TimeoutError`
-- Session death ~2-3 min after last WebSocket closes (no keep-alive backup)
-- GPU quota exhausted — `TooManyAssignmentsError`, switch accounts or wait 12-24h
-- Session pruned after connection errors — `[colab] Pruned 1 stale local session(s)`
+**Failure modes (verified in live tests, 2026-06-14):**
+- **Keep-alive daemon always dead** — IAM deadlock (403 `USER_PROJECT_DENIED`), daemon exits at T+61s every session. Session relies solely on WebSocket for liveness.
+- WebSocket connection failure (~40% of attempts) — dies at handshake/chdir stage with `TimeoutError`. Unrelated to session health.
+- WebSocket mid-exec drop — NAT timeout (5-15 min) or GFW RST. Code keeps running on VM but output stops. Connection burns NAT budget during idle queue time.
+- **Session death ~2-5 min after last active WebSocket closes** (typically ~3 min). Any gap in coverage is fatal — reconnection after a gap does not reliably reset the death timer.
+- GPU quota exhausted — `TooManyAssignmentsError (412)`, switch accounts or wait 12-24h.
+- Session pruned after connection errors — `[colab] Pruned 1 stale local session(s)`.
+
+**For sessions >10 minutes:** Use the relay handoff protocol (see `docs/reference/colab-gpu-keepalive.md` §5.5 and `docs/reference/colab-gpu-relay-tests.md`). Launch redundant watchdogs (2 per handoff window, 5-min windows, 30s overlap) via `nohup` for independent process isolation.
 
 Check session health after any connectivity error — transient SSL/connection errors happen and don't necessarily mean the session is dead:
 
@@ -288,11 +290,60 @@ Read `references/gotchas.md` for the full list (45 field-tested items). The ones
 9. **REST API survives WebSocket drops.** When `colab exec` returns 404/401, session is usually still alive — use `colab download` as fallback monitoring.
 10. **`colab upload` creates a FILE not a directory** when the path doesn't exist. Upload flat to `/content/` root, create dirs via exec.
 
+## Relay Handoff Protocol (Long GPU Sessions)
+
+For training sessions >10 minutes on free-tier Colab, use the WebSocket relay handoff protocol. The Jupyter kernel serial queue enables seamless watchdog handoff with zero-second gaps.
+
+**Mechanism:** Launch the next watchdog's `colab exec` before the current watchdog exits. The new WebSocket connects immediately and code queues behind the current execution. When the current watchdog finishes, the next starts the same second.
+
+**Recommended parameters (from live tests, 2026-06-14):**
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| Watchdog window | 5 minutes | Safe inside China WS stability window |
+| Overlap | 30 seconds | Minimize idle queue time (burns NAT budget) |
+| Heartbeat interval | 25 seconds | Real TCP payload via nvidia-smi + print |
+| Launch method | `nohup colab exec -f wd.py --timeout 420 &` | Independent OS process |
+| Redundancy | 2 watchdogs per handoff | ~60% connection success rate per attempt |
+
+**Reliability:** With redundant launching (2 per handoff), probability of surviving 4 handoffs is ~50%. For higher reliability, use an SSH tunnel (`ssh -D 7892 user@vps`) to bypass GFW and carrier NAT — enables hours-long single WebSocket connections.
+
+### Combined eval+watchdog pattern (proven, 2026-06-14)
+
+For workflows where training spawns detached and eval follows, use a single script that combines eval with WebSocket heartbeats. This eliminates coverage gaps entirely — no relay chain needed for moderate-length sessions.
+
+**Pattern (`eval_and_watch.py`):**
+```python
+# 1. Wait for training with heartbeats (every 15s)
+while not training_done:
+    print(f"[{ts()}] waiting...", flush=True)
+    time.sleep(15)
+
+# 2. Load model with heartbeats
+print(f"[{ts()}] loading model...", flush=True)
+
+# 3. Eval loop with frequent heartbeats (every 5 examples)
+for i, example in enumerate(test_data):
+    # ... run eval ...
+    if (i + 1) % 5 == 0:
+        print(f"[{ts()}] eval {i+1}/N | acc={acc:.3f}", flush=True)
+```
+
+**Why it works:**
+- WebSocket is active from launch to eval completion — no gap, no queue time
+- Heartbeats generate real TCP payload every 15-25s → reset NAT timers
+- Combined 5-8 min window covers training wait + model loading + eval
+- Redundant launch (2 instances, 30s apart) → ~84% success rate from China
+
+**Verified:** text2sql_finetune session survived 10+ min with this pattern (2026-06-14, hackxie1998 account). See `projects/nlp/text2sql_finetune/README.md` for full experiment log.
+
+See `docs/reference/colab-gpu-keepalive.md` (root cause, protocol design) and `docs/reference/colab-gpu-relay-tests.md` (live fire test data, timeline analysis).
+
 ## WebSocket stability
 
-The root cause of most `colab exec` failures from China: `KernelWebSocketClient._run_websocket()` calls `run_forever()` without proxy parameters, `ping_interval=60` races with NAT timeouts, and `reconnect_interval=0` means no auto-reconnect. See `docs/websocket-stability-china.md` for the full root-cause analysis.
+The root cause of most `colab exec` failures from China: `KernelWebSocketClient._run_websocket()` calls `run_forever()` without proxy parameters, `ping_interval=60` races with NAT timeouts, and `reconnect_interval=0` means no auto-reconnect. See `docs/reference/websocket-stability-china.md` for the full root-cause analysis.
 
-**The fix:** Detached bootstrap — exec returns in seconds, training survives all WebSocket drops (see Executing code > Background / nohup execution above).
+**The fix:** Detached bootstrap — exec returns in seconds, training survives all WebSocket drops (see Executing code > Background / nohup execution above). For long sessions, use the relay handoff protocol above.
 
 ## Checkpoint persistence
 
@@ -433,10 +484,20 @@ The Colab VM's working directory is `/content/`. Uploaded files with relative pa
 
 ## Related docs
 
-- `docs/colab-gpu-keepalive.md` — Root cause: IAM deadlock, WebSocket as primary liveness signal, relay handoff protocol
-- `docs/websocket-stability-china.md` — China WebSocket stability: NAT/GFW/proxy layer analysis, ping gap, mitigation
-- `docs/core-flows.md` — Command-level sequence diagrams (new, exec, upload, keep-alive, relay handoff, stop)
-- `docs/google-colab-cli-source-analysis.md` — Full source code architecture reference (v0.5.11)
-- `docs/guides/colab-drivemount.md` — Google Drive mount: OAuth flow, automation, 120s timeout, BUSY state, gotchas (tested 2026-06-14)
-- `../.colab-gpu-status.json` — Per-account GPU quota availability snapshot (T4, checked via probe)
+**Quick reference** (topic files at `references/`):
+- `references/colab-session-survival.md` — Session death root cause, relay, eval+watchdog, grace period, redundancy
+- `references/colab-proxy-network.md` — Proxy configs, China constraints, REST vs WS, connection reliability
+- `references/colab-operations.md` — File I/O, exec, upload, download, multi-account, cron watchtower
+- `references/training-fundamentals.md` — LR, init, NaN, AMP, CUDA timing, cross-entropy optimization
+- `references/model-specific.md` — nanoGPT, nanochat, transformer_iwslt, text2sql project gotchas
+- `references/cuda-t4-gotchas.md` — T4 limits, CUDA dark corners, FP16/BF16, VRAM management
+
+**Deep-dive analysis** (`docs/reference/`):
+- `docs/reference/colab-gpu-keepalive.md` — Root cause: IAM deadlock, WebSocket liveness, relay protocol design
+- `docs/reference/colab-gpu-relay-tests.md` — Live fire test results: 3 tests, timeline data, cross-test analysis
+- `docs/reference/websocket-stability-china.md` — NAT/GFW/proxy layer analysis, ping gap, mitigation
+- `docs/reference/google-colab-cli-source-analysis.md` — Full source code architecture reference (v0.5.11)
+- `docs/reference/core-flows.md` — Command-level sequence diagrams
+- `docs/guides/colab-drivemount.md` — Google Drive mount: OAuth flow, automation, gotchas
+- `../.colab-gpu-status.json` — Per-account GPU quota availability snapshot
 - `../.colab-session-status.json` — Per-account active session counts (GPU/CPU, checked via `colab sessions`)

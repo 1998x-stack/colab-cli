@@ -1,9 +1,10 @@
-"""WebSocket relay watchdog — keeps WS alive, monitors training, 7-min window.
+"""WebSocket relay watchdog (ws-2, ws-3, ...) — 7-min keepalive window.
 
-Upload once. Run via: colab exec -f watchdog.py --timeout 480
+Auto-names itself using a counter file on the VM.
+Monitors training PID, GPU utilization, and training log progress.
+Generates real TCP payload every 30s (nvidia-smi + log read) to reset NAT timeouts.
 
-Auto-names itself (ws-1, ws-2, ...) using a counter file on the VM.
-Supports relay handoff: start next watchdog before this one exits.
+Usage: colab exec -s <name> -f watchdog.py --timeout 540
 """
 import subprocess, os, time
 from datetime import datetime, timezone
@@ -14,11 +15,10 @@ COUNTER_FILE = f"{OUT_DIR}/watchdog_counter"
 TRAIN_PID_FILE = f"{OUT_DIR}/train.pid"
 
 DURATION = 420   # 7 minutes
-INTERVAL = 30    # check every 30 seconds
+INTERVAL = 30
 
 os.makedirs(f"{OUT_DIR}/logs", exist_ok=True)
 
-# Auto-increment watchdog name
 counter = 1
 if os.path.exists(COUNTER_FILE):
     with open(COUNTER_FILE) as f:
@@ -38,7 +38,7 @@ def wlog(msg):
 
 wlog(f"START pid={os.getpid()} duration={DURATION}s")
 
-# Check if training exists
+# ── Find training ────────────────────────────────────────
 train_pid = None
 if os.path.exists(TRAIN_PID_FILE):
     with open(TRAIN_PID_FILE) as f:
@@ -47,12 +47,12 @@ if os.path.exists(TRAIN_PID_FILE):
         os.kill(train_pid, 0)
         wlog(f"found training PID={train_pid} ALIVE")
     except OSError:
-        wlog(f"training PID={train_pid} is DEAD")
+        wlog(f"training PID={train_pid} DEAD (stale PID file)")
         train_pid = None
 else:
-    wlog("no training PID file — monitor-only mode")
+    wlog("no train.pid — monitor-only mode")
 
-# GPU check
+# ── GPU check ────────────────────────────────────────────
 try:
     import torch
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "NONE"
@@ -60,6 +60,7 @@ try:
 except Exception:
     wlog("GPU check failed")
 
+# ── Watchdog loop ────────────────────────────────────────
 start_time = time.time()
 iteration = 0
 
@@ -67,7 +68,6 @@ while time.time() - start_time < DURATION:
     iteration += 1
     elapsed = time.time() - start_time
 
-    # Training status
     train_status = "N/A"
     if train_pid:
         try:
@@ -77,34 +77,31 @@ while time.time() - start_time < DURATION:
             train_status = "DEAD"
             wlog(f"ALERT: training died at t={elapsed:.0f}s")
 
-    # GPU utilization
     gpu_info = "?"
     try:
         gpu_info = subprocess.check_output(
-            "nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader",
-            shell=True, text=True, timeout=5
+            "nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader",
+            shell=True, text=True, timeout=5,
         ).strip()
     except Exception:
         pass
 
-    # Read last training log line
     train_tail = "(no log)"
     train_log_path = f"{OUT_DIR}/logs/train.log"
     if os.path.exists(train_log_path):
         try:
             with open(train_log_path) as f:
                 lines = f.readlines()
-                train_tail = lines[-1].strip()[-150:] if lines else "(empty)"
+                train_tail = lines[-1].strip()[-200:] if lines else "(empty)"
         except Exception:
             pass
 
     wlog(f"iter={iteration} elapsed={elapsed:.0f}s "
          f"train={train_status} gpu=[{gpu_info}] "
-         f"log_tail: {train_tail}")
+         f"tail: {train_tail}")
 
-    # Heartbeat to stdout — keeps WebSocket output stream active
-    print(f"[{ts()}] {NAME} heartbeat iter={iteration} elapsed={elapsed:.0f}s",
-          flush=True)
+    print(f"[{ts()}] {NAME} heartbeat iter={iteration} elapsed={elapsed:.0f}s "
+          f"train={train_status}", flush=True)
 
     if train_status == "DEAD" and train_pid is not None:
         wlog("exiting early — training dead")
@@ -114,4 +111,4 @@ while time.time() - start_time < DURATION:
 
 total = time.time() - start_time
 wlog(f"EXIT total_elapsed={total:.0f}s iterations={iteration}")
-wlog(f"HANDOFF: start next watchdog with: colab exec -f watchdog.py --timeout 480")
+wlog(f"HANDOFF → ws-{counter+1} should already be queued")

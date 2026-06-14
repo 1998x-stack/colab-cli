@@ -2,22 +2,22 @@
 
 在 Colab T4（CUDA 12.8, PyTorch 2.11.0+cu128）上验证常见的 DL 训练技巧和陷阱。
 
-## 实验概览（12 项实验，3 项已完成）
+## 实验概览（12 项实验，11 项已完成）
 
 | ID | 实验 | 状态 | 关键结果 |
 |----|------|------|---------|
 | dltrain-001 | 单 batch 过拟合检查 | ✅ done | 200 步 loss→0.000051, 最有效的 bug 检测法 |
 | dltrain-002 | 初始化损失理论值检查 | ✅ done | N(0,1.0) 初始化导致灾难性发散 |
-| dltrain-003 | OneCycleLR vs 恒定 LR | ⏳ ready | 超收敛, 对 Colab ~10 min GPU 窗口至关重要 |
-| dltrain-004 | AdamW vs Adam | ⏳ ready | weight decay 解耦 |
-| dltrain-005 | EMA 权重平均 | ⏳ ready | 免费 0.5-1% 准确率提升 |
-| dltrain-006 | Label smoothing | ⏳ ready | 防止过拟合和 attention 坍缩 |
-| dltrain-007 | 低 epoch 数据增强反效果 | ⏳ ready | 对 Colab 有限 GPU 窗口至关重要 |
-| dltrain-008 | BN 前的 bias 死参数 | ⏳ ready | Karpathy 6 大常见错误之一 |
-| dltrain-009 | LR Finder | ⏳ ready | 一个 epoch 找到最优 LR |
-| dltrain-010 | SWA 随机权重平均 | ⏳ ready | 免费 1-2% 准确率 |
+| dltrain-003 | OneCycleLR vs 恒定 LR | ✅ done | 超收敛, 对 Colab ~10 min GPU 窗口至关重要 |
+| dltrain-004 | AdamW vs Adam | ✅ done | weight decay 解耦 |
+| dltrain-005 | EMA 权重平均 | ✅ done | 免费 0.5-1% 准确率提升 |
+| dltrain-006 | Label smoothing | ✅ done | 防止过拟合和 attention 坍缩 |
+| dltrain-007 | 低 epoch 数据增强反效果 | ⏳ planned | 对 Colab 有限 GPU 窗口至关重要 (8min, 多次尝试 session 死亡) |
+| dltrain-008 | BN 前的 bias 死参数 | ✅ done | 128 死参数, bias 被 BN 抵消无精度影响 |
+| dltrain-009 | LR Finder | ✅ done | 一个 epoch 找到最优 LR |
+| dltrain-010 | SWA 随机权重平均 | ✅ done | SWA 最终精度 +0.5% (58.26%→58.72%) |
 | dltrain-011 | view vs reshape 陷阱 | ✅ done | non-contiguous 上 view() 会报错; reshape() 安全 |
-| dltrain-012 | bias/BN 参数的 weight decay | ⏳ ready | 排除 bias+BN 参数 |
+| dltrain-012 | bias/BN 参数的 weight decay | ✅ done | 排除 bias+BN 参数避免有害 weight decay |
 
 ---
 

@@ -284,7 +284,8 @@ index.md                         # Full project index with descriptions
 - [`docs/google-colab-cli-source-analysis.md`](./docs/google-colab-cli-source-analysis.md) — Full source code architecture reference (v0.5.11)
 - [`docs/guides/`](./docs/guides/) — How-to guides (Colab CLI, multi-account, quantization, session monitoring)
 - [`docs/reference/`](./docs/reference/) — Technical deep-dives (model gotchas, Kaggle analysis, CUDA dark corners, DL training tricks, AutoDL platform)
-- [`.claude/skills/colab-cli/references/gotchas.md`](./.claude/skills/colab-cli/references/gotchas.md) — 22 field-tested gotchas
+- [`references/`](./references/) — Quick-reference topic files (session survival, proxy, ops, training, models, CUDA)
+- [`.claude/skills/colab-cli/references/gotchas.md`](./.claude/skills/colab-cli/references/gotchas.md) — Full operational gotcha catalog (canonical source)
 - [`.claude/skills/colab-cli/references/workflows.md`](./.claude/skills/colab-cli/references/workflows.md) — Full workflow patterns
 - [`projects/rl/REPORT_ddpg_vs_td3.md`](./projects/rl/REPORT_ddpg_vs_td3.md) — DDPG vs TD3 benchmark report
 - [`index.md`](./index.md) — Full project index with descriptions

@@ -285,16 +285,38 @@ for i in range(DURATION // INTERVAL):
 log(f"WATCHDOG_EXIT")
 ```
 
-### 5.4 Key constraints
+### 5.4 Key constraints (updated 2026-06-14 from live tests)
 
 | Constraint | Value | Mitigation |
 |-----------|-------|------------|
-| China WebSocket stability | ~8-12 min per connection | Handoff every 7 min |
+| China WebSocket stability | 5-8 min reliable window (carrier-dependent) | 5-min watchdog windows |
+| China WS connection success rate | ~60% per attempt (3/5 in live tests) | Launch 2 watchdogs per handoff (redundancy) |
 | Kernel execution | Serial (one at a time) | Queue next watchdog before current exits |
-| Session grace period | ~2-3 min after last signal | Overlap ensures <10 sec gaps |
+| Session grace period | ~2-5 min after last signal (typically ~3 min) | Overlap ensures <10 sec gaps |
+| Handoff gap | 0-5 seconds (kernel queue, measured at 0s twice) | No gap mitigation needed |
+| Queue time penalty | Idle queue time burns NAT budget 1:1 | Minimize overlap to 30s |
+| Coverage gaps | FATAL — any gap triggers reclamation | Continuous coverage mandatory |
 | Free tier session limit | 12 hours max | Relay chain up to limit |
-| `colab exec --timeout` | Must exceed watchdog duration | Set to 540 (9 min for 7-min watchdog) |
-| Watchdog launch method | Must use independent processes | Direct `&` in shell, cron, or disown |
+| `colab exec --timeout` | Must exceed watchdog duration | Set to 420 (7 min for 5-min watchdog) |
+| Watchdog launch method | Must use independent OS processes | `nohup ... &` or `Popen(start_new_session=True)` |
+
+### 5.5 Redundant Watchdog Relay (Recommended for >20 min)
+
+Each watchdog connection has ~60% success rate from China. For reliability, launch **two** watchdogs per handoff window:
+
+```
+P(at least one connects) = 1 - (1 - 0.6)^2 = 84% per handoff
+P(4 handoffs all succeed) = 0.84^4 ≈ 50%
+```
+
+Parameters for 25-min sessions:
+- **Window:** 5 minutes per watchdog
+- **Overlap:** 30 seconds (minimize queue time — idle queue burns NAT budget)
+- **Heartbeat:** Every 25 seconds (nvidia-smi + print for real TCP payload)
+- **Watchdogs needed:** 6 pairs (12 total launches)
+- **Launch:** `nohup colab exec -f wd.py --timeout 420 &`
+
+Live test data: `docs/reference/colab-gpu-relay-tests.md`
 
 ---
 
@@ -352,18 +374,39 @@ tests/ws-keepalive/
 2. **The WebSocket connection is the primary liveness signal.** Colab's runtime
    proxy tracks active WebSocket connections to the kernel. A persistent
    WebSocket keeps the session alive even without keep-alive RPC calls.
+   Confirmed in live tests — session died 3-4 min after WebSocket closed.
 
 3. **Jupyter kernels execute code sequentially.** Multiple `colab exec`
    processes can connect simultaneously, but only one executes at a time.
    Others queue in order.
 
-4. **Relay handoff works via kernel queuing.** Start the next watchdog's
-   `colab exec` before the current one exits. The next watchdog's WebSocket
-   connects immediately and code queues. When the current watchdog finishes,
-   the next starts within ~5 seconds.
+4. **Relay handoff works with zero-second gap.** Two handoffs measured at
+   exactly 0 seconds — the queued watchdog starts the same second the current
+   one exits. Kernel serial queue handles this flawlessly.
 
-5. **The session grace period is ~2-3 minutes** after the last active WebSocket
-   drops. This provides a safe margin for handoff gaps.
+5. **The session grace period is ~2-5 minutes** (typically ~3 min) after the
+   last active WebSocket drops. But any gap in coverage is fatal — reconnection
+   does not reliably reset the death timer.
 
-6. **China WebSocket stability is ~8-12 minutes** per connection. Handoff
-   every 7 minutes keeps a safe margin.
+6. **China WebSocket connection success rate is ~60% per attempt** (3/5 in
+   live tests). Failed attempts die at the WebSocket handshake/chdir stage,
+   not mid-execution.
+
+7. **Queue time burns NAT budget.** A watchdog queued (connected but idle)
+   for 2 minutes had only ~4 minutes of execution before dropping. Keep
+   overlap to 30 seconds — just enough for connection + queuing.
+
+8. **Config B proxy (HTTP CONNECT tunnel) is the reliable default.**
+   Config A (SOCKS5 + no_proxy for colab.dev) had WebSocket connection
+   failures. Config B worked for both REST and WebSocket consistently.
+
+## 9. Live Fire Test Results
+
+Three progressively complex relay tests were run on 2026-06-14. Full data in
+`docs/reference/colab-gpu-relay-tests.md`.
+
+| Test | Watchdogs | WS Coverage | Session Life | Result |
+|------|-----------|-------------|--------------|--------|
+| Single watchdog (8 min) | 1 | 8 min | ~12 min | Training (12 min) incomplete |
+| Two-watchdog relay | 2 | ~11 min | ~14.6 min | Training (14 min) incomplete |
+| Multi-watchdog (25-min target) | 6 planned | ~7 min + gap | ~10.8 min | 2-min gap killed session |

@@ -21,21 +21,25 @@ LOG_DIR = "logs"
 
 
 def extract_sql(text):
-    """Extract SQL from between <|im_start|>assistant and <|im_end|> tags."""
-    pattern = r"<\|im_start\|>assistant\n(.*?)<\|im_end\|>"
+    """Extract SQL from model output, stripping Qwen3 think tags."""
+    pattern = r"<\|im_start\|>assistant\n(.*?)(?:<\|im_end\|>|$)"
     matches = re.findall(pattern, text, re.DOTALL)
-    if matches:
-        return matches[-1].strip()
-    idx = text.rfind("assistant\n")
-    if idx != -1:
-        return text[idx + len("assistant\n"):].strip()
-    return text.strip()
+    raw = matches[-1].strip() if matches else ""
+    if not raw:
+        idx = text.rfind("assistant\n")
+        raw = text[idx + len("assistant\n"):].strip() if idx != -1 else text.strip()
+    # Strip Qwen3 thinking tags
+    raw = re.sub(r"<think>.*?</think>\s*", "", raw, flags=re.DOTALL).strip()
+    return raw
 
 
 def parse_create_table(sql):
-    """Extract CREATE TABLE statements from context string."""
-    pattern = r"CREATE\s+TABLE\s+[^;]+;"
-    return re.findall(pattern, sql, re.IGNORECASE)
+    """Extract CREATE TABLE statements from context string.
+
+    Dataset format: "CREATE TABLE name (cols)" with optional trailing ";".
+    Use parenthesis-bounded match — avoids over-matching into question text.
+    """
+    return re.findall(r"CREATE\s+TABLE\s+\w+\s*\([^)]+\)", sql, re.IGNORECASE)
 
 
 def execute_sql(create_tables, query):
@@ -117,7 +121,7 @@ def main():
         model_inputs = {"input_ids": prompt_tensor, "attention_mask": attn_tensor}
         with torch.no_grad():
             generated = model.generate(
-                **model_inputs, max_new_tokens=256, do_sample=False,
+                **model_inputs, max_new_tokens=512, do_sample=False,
                 pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
                 eos_token_id=tokenizer.eos_token_id,
             )

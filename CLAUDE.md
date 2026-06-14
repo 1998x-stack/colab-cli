@@ -113,11 +113,21 @@ REST operations (`colab new`, `colab stop`, `colab sessions`) go to `colab.pa.go
 
 These are project-specific or hyper-specific operational constraints:
 
-- **Colab free-tier GPU sessions die after ~10 min (2026-06-13发现, 根因2026-06-14确认)**: 连续5个session实测——free-tier GPU会在8-10分钟后被Colab回收。**根因：keep-alive守护进程因IAM死锁（`USER_PROJECT_DENIED` 403）在T+61s死亡，导致无存活信号到达Colab后端。约10分钟后GPU被回收。** WebSocket连接（`colab exec`）是实际的主要存活信号——WebSocket存活期间会话持续存活，WebSocket关闭后约2-3分钟会话死亡。详见`docs/reference/colab-gpu-keepalive.md`。
+- **Colab free-tier GPU sessions die after ~10 min (2026-06-13发现, 根因2026-06-14确认, 实测2026-06-14更新)**: 连续5+个session实测——free-tier GPU会在无WebSocket覆盖时被Colab回收。**根因：keep-alive守护进程因IAM死锁（`USER_PROJECT_DENIED` 403）在T+61s死亡。WebSocket连接（`colab exec`）是实际的主要存活信号。** WebSocket存活期间会话持续存活，WebSocket关闭后约2-5分钟（通常~3分钟）会话死亡。**任何WebSocket覆盖间隙都会触发回收**——断开后重连不能可靠重置死亡计时器。
+
+  **实测关键数据（2026-06-14 relay tests）：**
+  - 单WebSocket：8分钟WS覆盖 → 会话存活~12分钟
+  - 两看门狗接力：交接间隙0秒（内核串行队列），ws-2因排队时间耗尽NAT预算提前断开
+  - **交接间隙必须为0秒**：实际测得两次交接均为0秒间隔
+  - **中国WebSocket连接成功率~60%**（5次尝试中3次成功）
+  - **排队时间消耗NAT预算**：看门狗排队（已连接但空闲）2分钟 → 仅剩4分钟执行窗口
+  - 详见`docs/reference/colab-gpu-relay-tests.md`（实测报告）和`docs/reference/colab-gpu-keepalive.md`（协议设计）
 
   **单窗口训练（≤8 min）：** 单个`colab exec --timeout 540`保持WebSocket存活。预估：总steps ÷ 预估steps/sec ÷ 60 = 分钟数。MuJoCo约3000 steps/sec，Atari RAM约350 steps/sec（MLP），Atari pixels约50 steps/sec（CNN）。
 
-  **长训练（>8 min）：** 使用WebSocket中继交接模式（详见`docs/reference/colab-gpu-keepalive.md` §5.2）。多个`colab exec`看门狗串链（7分钟窗口，1分钟重叠），内核串行队列确保交接间隙<5秒。已实测验证支持20+分钟连续覆盖。受限于中国WebSocket稳定性（每次连接约8-12分钟）和免费套餐12h会话上限。超长任务仍建议用Kaggle。
+  **长训练（>8 min，推荐冗余看门狗接力）：** 使用WebSocket中继交接模式。**推荐参数**：5分钟看门狗窗口、30秒重叠（最小化排队时间）、每交接窗口启动2个冗余看门狗（应对~40%连接失败率）。4次交接全部成功的概率~50%。详见`docs/reference/colab-gpu-keepalive.md` §5.5和`docs/reference/colab-gpu-relay-tests.md`。如需高可靠性，使用SSH隧道（`ssh -D 7892 user@vps`）绕过GFW+NAT。超长任务（>1h）仍建议用Kaggle。
+
+  **短训练+eval组合（≤8 min，推荐eval+watchdog合并模式）：** 对于训练生成detached子进程、eval单独运行的场景，使用单个合并脚本（eval_and_watch.py）保持WebSocket持续存活。脚本在等待训练时每15s发心跳，eval期间每5个examples发心跳。text2sql_finetune实测（2026-06-14）：session存活10+分钟，eval完成100/100 examples，WebSocket无断连。配合冗余启动（30s后启动第二个实例），连接成功率~84%。
 - **First Colab session rarely produces useful training**: Data download + tokenizer training + CUDA JIT = 7-10 min overhead. Combined with ~10 min effective GPU window, first session almost never completes training. Use a short warmup session first to cache data, then re-provision for the real run.
 - **Checkpoint downloads >600MB fail through proxy**: Full checkpoint with optimizer state = ~1GB, proxy breaks at ~624MB (IncompleteRead). Save a separate **weights-only checkpoint** (~120-233MB) for download.
 - **BLEU/beam search is the hidden bottleneck** (transformer_iwslt): Beam search eval on full val set takes hours. Use 100-sentence subset with greedy decode for training-time eval.
@@ -314,9 +324,20 @@ When a problem, surprise, or workaround is discovered during a session, route it
 |-------|------------|---------|
 | Specific to one project | `projects/<project>/gotchas.md` | "PCA resize must use fixed [H,W], not single int" (alexnet) |
 | Colab/Kaggle CLI mechanics | `.claude/skills/<skill>/references/gotchas.md` | "`colab upload` creates file not dir when path missing" (colab-cli) |
-| ML/model-wide, not CLI-specific | `docs/reference/model-gotchas.md` | "Beam search eval OOMs even when training fits — allocate extra cache" |
+| ML/model-wide, not CLI-specific | `references/model-specific.md` or `references/training-fundamentals.md` | "Beam search eval OOMs even when training fits" |
 
-**Decision rule:** If the learning is about *how to use the tool* (colab exec, upload, proxy, sessions), it goes to the skill gotchas. If it's about *the model/algorithm behavior* (init scheme, CUDA OOM, convergence), it goes to the project gotchas. If it applies across projects (any transformer, any RL agent), it goes to `docs/reference/model-gotchas.md`. When uncertain, default to the project gotchas — it's easier to promote later than to find a buried note.
+**Reference file structure** (`references/` at repo root):
+
+| File | Covers |
+|------|--------|
+| `colab-session-survival.md` | Session death root cause, relay, eval+watchdog, grace period |
+| `colab-proxy-network.md` | Proxy configs, China constraints, REST vs WS paths |
+| `colab-operations.md` | File I/O, exec, upload, download, multi-account |
+| `training-fundamentals.md` | LR schedules, init, NaN, AMP, CUDA timing |
+| `model-specific.md` | nanoGPT, nanochat, transformer_iwslt, text2sql |
+| `cuda-t4-gotchas.md` | T4 limits, CUDA dark corners, FP16/BF16 |
+
+**Decision rule:** If the learning is about *how to use the tool* (colab exec, upload, proxy, sessions), it goes to `references/colab-*.md`. If it's about *model/algorithm behavior* (init scheme, CUDA OOM, convergence), it goes to `references/training-fundamentals.md` or `references/model-specific.md`. If it's project-specific, it goes to `projects/<project>/gotchas.md`. When uncertain, default to the project gotchas — it's easier to promote later than to find a buried note.
 
 ## Multi-session awareness
 

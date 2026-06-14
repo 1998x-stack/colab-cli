@@ -77,15 +77,22 @@ Provisioning a second GPU session raises `TooManyAssignmentsError (412 Precondit
 
 ## Session lifetime
 
-### Colab official limits vs. observed behavior from China
+### Colab official limits vs. observed behavior from China (updated 2026-06-14)
 
 **Official free-tier limits**: 12h max session, ~90min idle timeout. GPU quota is dynamic — heavy usage triggers 12-24h cooldown before GPU is available again.
 
-**Observed from China**: `colab exec` frequently drops after ~8-12 min of wall-clock time (carrier-dependent). This is NOT Colab killing the session — it's the WebSocket connection dying through the SOCKS5 proxy. The session itself (and any detached training) survives, but interactive exec becomes unreachable.
+**Observed from China (live tests, 2026-06-14):** Without active WebSocket coverage, free-tier GPU sessions die **10-12 minutes** after creation (grace period ~2-5 min after last WebSocket drops). With continuous WebSocket coverage via relay chain, sessions can survive hours. The keep-alive daemon is broken (IAM deadlock, dies at T+61s) — the WebSocket IS the liveness signal.
 
-The keep-alive daemon (auto-spawned by `colab new`, calls `KeepAliveAssignment` RPC via REST every 60s, max 24h) prevents idle timeout. But it uses REST API (`colab.pa.googleapis.com`), not WebSocket — so it does nothing for exec stability.
+**Key metrics from live tests:**
+- China WS connection success rate: ~60% per attempt (3/5)
+- Stable WS execution window: 5-8 min (carrier-dependent)
+- Handoff gap: 0 seconds (kernel serial queue, measured twice)
+- Queue time penalty: 1:1 (1 min queued = 1 min less execution)
+- Coverage gaps: FATAL — even 2-min gap triggers reclamation
 
-See `docs/websocket-stability-china.md` for the full root-cause analysis.
+See `docs/reference/colab-gpu-relay-tests.md` for full test data and timeline analysis.
+
+### Why exec drops: two-path architecture
 
 ### Why exec drops: two-path architecture
 
@@ -100,13 +107,14 @@ Colab uses separate network paths:
 
 **Recommended config:** `HTTPS_PROXY=socks5://127.0.0.1:7890` (REST through SOCKS5) + `no_proxy="*.colab.dev,*.prod.colab.dev"` (WebSocket direct). Flip if direct fails.
 
-### Free tier sessions can die in under 5 minutes after connection errors
+### Session death timing (verified 2026-06-14)
 
-After `RuntimeError: Connection was lost` or `TimeoutError` during exec, the session is often pruned on the next `colab sessions` check. Connection errors appear to accelerate termination.
+Without active WebSocket coverage, free-tier GPU sessions reliably die 10-12 minutes after creation (3 live tests). The death timer starts when the last WebSocket drops — grace period is 2-5 minutes (typically ~3 min). Reconnection after a gap does NOT reliably reset the timer (observed in Test 3).
 
 **Mitigation:**
-- Minimize exec failures — use detached bootstrap scripts (see Network & proxy section)
-- If exec fails, immediately check with `colab sessions` and re-provision if needed
+- Keep continuous WebSocket coverage — no gaps, even 2-minute ones
+- For sessions >10 min, use relay handoff protocol with redundant watchdogs
+- If exec fails with `RuntimeError: Connection was lost`, immediately check `colab sessions` and launch a new watchdog if session is alive
 - Don't assume the session survived just because it was created 2 minutes ago
 
 ### GPU quota exhaustion
@@ -631,9 +639,47 @@ CIFAR-10 download (~170MB) + CUDA JIT = 7-10 min overhead. Combined with ~10 min
 
 When running upload→exec→download chains, Config B (`HTTPS_PROXY=http://`, `ALL_PROXY=socks5://`) was consistently more reliable than Config A (`HTTPS_PROXY=socks5://` + `no_proxy`). Config A's no_proxy exclusion for `*.prod.colab.dev` causes SSL/EOF errors on upload/download REST calls. When in doubt, start with Config B.
 
-### Session lives 30+ minutes with active WebSocket
+### Session lives indefinitely with continuous WebSocket coverage
 
-Despite the documented ~10 min window, one session survived 30+ minutes with continuous detached benchmark runs and periodic `colab exec` checks. The key: keep the WebSocket active every few minutes. Even a quick `echo 'print("alive")' | colab exec` resets the ~2-3 min post-WebSocket death timer.
+Sessions survive as long as the WebSocket stays active — the ~10 min limit only applies when coverage lapses. Continuous WebSocket coverage (via relay chain) keeps sessions alive for hours. Even a quick `echo 'print("alive")' | colab exec` resets the ~2-5 min post-WebSocket death timer. But **gaps are fatal** — a 2-min gap triggered reclamation in live tests even though a WebSocket reconnected afterward.
+
+## Relay handoff protocol (2026-06-14 live tests)
+
+### Handoff gap is zero seconds — but coverage gaps are fatal
+
+The Jupyter kernel serial queue processes the next watchdog the instant the current one exits. Two handoffs measured at exactly 0 seconds gap. But **any gap in WebSocket coverage triggers session reclamation** — the death timer starts when the last WebSocket drops, and reconnection does NOT reliably reset it. A 2-minute gap in Test 3 killed the session even though a WebSocket reconnected afterward.
+
+**Rule:** Never allow a gap. Launch the next watchdog BEFORE the current one exits. If a watchdog fails to connect, launch another immediately.
+
+### Queue time burns NAT budget
+
+When a watchdog is launched while another execution is active, its WebSocket connects immediately but its code sits idle in the kernel queue. This idle time counts against the NAT timeout. A watchdog queued for 2 minutes had only ~4 minutes of execution before the WebSocket dropped (6 min total connection, within China NAT timeout range).
+
+**Rule:** Minimize overlap to 30 seconds — just enough for WebSocket connection + code queuing. Never launch more than 1 minute early.
+
+### WebSocket connection success is ~60% per attempt
+
+In live tests, 3 of 5 WebSocket connection attempts succeeded. Failed attempts die at the handshake/chdir stage with `TimeoutError: Timeout waiting for reply` — they never reach the watchdog code. This is independent of session health.
+
+**Rule:** Launch 2 redundant watchdogs per handoff window. Probability of at least one connecting: 84%.
+
+### Config B (HTTP CONNECT) is the reliable default
+
+Config A (SOCKS5 + `no_proxy=*.colab.dev`) had WebSocket connection failures during relay tests. Config B (`HTTPS_PROXY=http://`, `ALL_PROXY=socks5://`) worked consistently for REST + WebSocket.
+
+**Rule:** Start with Config B. Only flip to Config A if Config B's WebSocket connections fail.
+
+### Shell script timing bugs are easy to introduce
+
+The Test 3 orchestrator had `log "Launching ws-3"` BEFORE `sleep 270; nohup colab exec ...`. This created a 4-minute coverage gap because the log statement was misleading about when the actual launch happened. The session died before ws-3 could launch.
+
+**Rule:** In orchestrator scripts, place `sleep` BETWEEN launch operations, not between log and launch. Better: use a Python orchestrator with `subprocess.Popen(start_new_session=True)` for precise timing.
+
+### Training survives WebSocket drops but session doesn't
+
+When a watchdog's WebSocket drops mid-execution, the watchdog code continues running on the VM (the kernel keeps executing). But the Colab runtime proxy sees the WebSocket drop and starts the ~2-5 minute reclamation timer. The training process (detached via `start_new_session=True`) also dies when the VM is reclaimed.
+
+**Rule:** Training survival = WebSocket coverage continuity. They are not independent.
 
 ### Cron watchtower for detached benchmarks
 
@@ -648,3 +694,50 @@ CronCreate(
 ```
 
 Cancel the cron when benchmarks complete to avoid noise.
+
+## Combined eval+watchdog pattern (2026-06-14 text2sql deployment)
+
+### Coverage gaps kill sessions — not just WebSocket drops
+
+bg_launch.py returns fast (spawns training detached, exits in <1 min). Its WebSocket closes. If you wait for training and then launch eval separately, there's a gap of 2+ min with no WebSocket coverage. The session death timer starts and may reclaim the VM before eval completes.
+
+**Fix:** Launch eval+watchdog combined script immediately after bg_launch.py. The script waits for training (with heartbeats), then runs eval (with heartbeats). WebSocket is active from launch to eval completion — zero gaps.
+
+### Redundant launch matters more than you think
+
+WebSocket connection success rate is ~60% from China. A single eval_and_watch.py has 40% chance of failing at connection. Two instances launched 30s apart: 84% chance at least one connects.
+
+**Pattern:**
+```bash
+nohup colab exec -s "$S" -f eval_and_watch.py --timeout 600 > /tmp/eval1.log 2>&1 &
+sleep 30
+nohup colab exec -s "$S" -f eval_and_watch.py --timeout 600 > /tmp/eval2.log 2>&1 &
+```
+
+If the primary connects, the backup queues harmlessly behind it. If the primary fails, the backup takes over.
+
+### PeftModel.from_pretrained() needs directory, not config file
+
+Passing `adapter_config.json` file path to `PeftModel.from_pretrained()` raises `ValueError: Can't find 'adapter_config.json' at '/content/.../adapter_config.json'`. The function expects the directory containing the adapter files, not the config file itself.
+
+```python
+# WRONG
+adapter_path = f"{PROJECT_DIR}/lora_weights/adapter_config.json"
+eval_model = PeftModel.from_pretrained(base_model, adapter_path)
+
+# RIGHT
+adapter_dir = f"{PROJECT_DIR}/lora_weights"
+eval_model = PeftModel.from_pretrained(base_model, adapter_dir)
+```
+
+### parse_create_table over-matches without semicolon
+
+When the dataset's CREATE TABLE statements lack trailing `;`, making it optional with `[^;]+;?` causes the regex to eat through newlines into question text. The resulting "CREATE TABLE" includes garbage like `\n\nQuestion: How many...`. SQLite rejects it, and all subsequent queries fail with "no such table."
+
+**Fix:** Use parenthesis-bounded regex: `CREATE\s+TABLE\s+\w+\s*\([^)]+\)`
+
+### Qwen3 think tags eat token budget
+
+Qwen3's chat template injects `<think>...</think>` tags around assistant responses (even when the training data doesn't explicitly include them). These tags consume `max_new_tokens` budget. With 256 tokens, think content often uses all budget before SQL is generated → `gen_sql = ""` → syntax error.
+
+**Fix:** `max_new_tokens=512` gives enough room for think tags + SQL. Also strip think tags during extraction with `re.sub(r"<think>.*?</think>\s*", "", raw, flags=re.DOTALL)`.

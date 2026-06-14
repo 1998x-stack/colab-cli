@@ -1,6 +1,13 @@
 """Colab bootstrap for text2sql_finetune — single-shot inline execution.
 
-Upload all source files, then run:
+NOTE: Prefer bg_launch.py for new deployments. This script inlines training/eval
+code to avoid torchao subprocess import issues, but duplicates logic from train.py
+and evaluate.py. bg_launch.py spawns train.py as a detached subprocess — survives
+WebSocket drops and keeps a single source of truth.
+
+Use this only if bg_launch.py fails with torchao import errors in subprocess.
+
+Usage:
     colab exec -s <name> -f launch.py --timeout 540
 
 Outputs go to /content/text2sql-finetune-output/
@@ -151,17 +158,17 @@ from peft import PeftModel
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 
 def _extract_sql(text):
-    pattern = r"<\|im_start\|>assistant\n(.*?)<\|im_end\|>"
+    pattern = r"<\|im_start\|>assistant\n(.*?)(?:<\|im_end\|>|$)"
     matches = re.findall(pattern, text, re.DOTALL)
-    if matches:
-        return matches[-1].strip()
-    idx = text.rfind("assistant\n")
-    if idx != -1:
-        return text[idx + len("assistant\n"):].strip()
-    return text.strip()
+    raw = matches[-1].strip() if matches else ""
+    if not raw:
+        idx = text.rfind("assistant\n")
+        raw = text[idx + len("assistant\n"):].strip() if idx != -1 else text.strip()
+    raw = re.sub(r"<think>.*?</think>\s*", "", raw, flags=re.DOTALL).strip()
+    return raw
 
 def _parse_create_table(sql):
-    return re.findall(r"CREATE\s+TABLE\s+[^;]+;", sql, re.IGNORECASE)
+    return re.findall(r"CREATE\s+TABLE\s+\w+\s*\([^)]+\)", sql, re.IGNORECASE)
 
 def _execute_sql(create_tables, query):
     conn = sqlite3.connect(":memory:")
@@ -215,7 +222,7 @@ for i, ex in enumerate(test_examples):
     with _torch.no_grad():
         generated = eval_model.generate(
             input_ids=prompt_tensor, attention_mask=attn_tensor,
-            max_new_tokens=256, do_sample=False,
+            max_new_tokens=512, do_sample=False,
             pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
         )
     full_output = tokenizer.decode(generated[0], skip_special_tokens=False)
