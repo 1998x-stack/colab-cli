@@ -8,9 +8,9 @@
     "cuda": "12.8",
     "colab_tier": "free",
     "total_experiments": 28,
-    "done": 12,
+    "done": 16,
     "ready": 0,
-    "planned": 16
+    "planned": 12
   },
   "experiments": [
     {
@@ -295,9 +295,9 @@
       "description": "Allocating small-then-large can waste 2× reserved memory because small segments can't merge. expandable_segments:True eliminates this. Same total bytes, different allocation order → OOM or not.",
       "expected_magnitude": "Up to 2× memory waste from bad order",
       "code_complexity": "~30 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 1,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_memory-001.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/memory-001/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#5.1",
       "tags": [
@@ -313,7 +313,7 @@
       "sources": [
         "https://github.com/pytorch/pytorch/issues/35901"
       ],
-      "notes": "Compare small→large vs large→small allocation order. Track memory_allocated() vs memory_reserved(). Test with and without PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True."
+      "notes": "Compare small→large vs large→small allocation order. Track memory_allocated() vs memory_reserved(). Test with and without PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True. Normal patterns show 0% waste on CUDA 12.8 caching allocator. Extreme fragmentation (800×15MB) still causes OOM on 3GB allocation."
     },
     {
       "id": "precision-001",
@@ -322,9 +322,9 @@
       "description": "FP16 can't represent values < ~6e-5. Adam's default eps=1e-8 rounds to zero, producing NaN gradients within 50-200 steps. Fix: eps=1e-4 or higher.",
       "expected_magnitude": "Training diverges within 50-200 steps with FP32-default eps",
       "code_complexity": "~40 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 2,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_precision-001.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/precision-001/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#6.1",
       "tags": [
@@ -338,7 +338,7 @@
       "colab_time_estimate_min": 5,
       "dependencies": [],
       "sources": [],
-      "notes": "Train small MLP with AMP. Compare eps=1e-8 vs 1e-4. Track loss and grad norm."
+      "notes": "Train small MLP with AMP. Compare eps=1e-8 vs 1e-4. Track loss and grad norm. NULL RESULT on PT 2.11/CUDA 12.8: No NaN for any eps (1e-8 to 1e-3) within 500 AMP steps. GradScaler effectively prevents FP16 eps underflow."
     },
     {
       "id": "precision-002",
@@ -347,9 +347,9 @@
       "description": "T4 Tensor Cores: 65 TFLOPS FP16 theoretical vs 8.1 FP32 (8× cliff). Real models achieve only 3-4×. Find the matmul sizes where Tensor Cores kick in and where utilization plateaus.",
       "expected_magnitude": "1.5-4× for AMP; <2048 dim → low utilization",
       "code_complexity": "~30 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 2,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_precision-002.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/precision-002/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#6.2",
       "tags": [
@@ -397,9 +397,9 @@
       "description": "torch.max(x) when x is non-contiguous triggers 3-stage reduction instead of 2-stage under inductor. Same values, 8× slower. A .contiguous() call before .max() fixes it.",
       "expected_magnitude": "2-8× slowdown for max() on non-contiguous under compile",
       "code_complexity": "~20 lines",
-      "status": "planned",
+      "status": "done",
       "priority": 3,
-      "benchmark_script": null,
+      "benchmark_script": "projects/systems/cuda-dark-corners/benchmark_compile-002.py",
       "output_dir": "projects/systems/cuda-dark-corners/output/compile-002/",
       "reference_doc": "docs/reference/pytorch-cuda-dark-corners.md#8.2",
       "tags": [
@@ -415,7 +415,7 @@
       "sources": [
         "https://github.com/pytorch/pytorch/issues/144431"
       ],
-      "notes": "Compare torch.max(x) vs torch.max(x.contiguous()) under compile for transposed tensors."
+      "notes": "Compare torch.max(x) vs torch.max(x.contiguous()) under compile for transposed tensors. NULL RESULT REVERSED: Eager shows 1.6-5.5× penalty for non-contiguous max(). But torch.compile ELIMINATES it (1.0×). PT 2.11 fixed the layout sensitivity under compile."
     },
     {
       "id": "dltrain-001",
@@ -735,19 +735,19 @@
     "memory-allocator": {
       "label": "Memory Allocator",
       "count": 1,
-      "done": 0,
+      "done": 1,
       "icon": "🧠"
     },
     "mixed-precision": {
       "label": "Mixed Precision & Tensor Cores",
       "count": 2,
-      "done": 0,
+      "done": 2,
       "icon": "🎯"
     },
     "torch-compile": {
       "label": "torch.compile & JIT",
       "count": 2,
-      "done": 1,
+      "done": 2,
       "icon": "⚡"
     },
     "dl-training": {
