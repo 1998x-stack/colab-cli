@@ -138,6 +138,7 @@ def main():
                     break
 
                 scaler.scale(loss).backward()
+                scaler.unscale_(opt)
 
                 # Log unclipped gradient norm
                 total_norm = 0.0
@@ -184,7 +185,7 @@ def main():
                             pass
 
         total_time = time.time() - t0
-        final_test_loss, final_test_acc = evaluate(model, test_loader, "cuda")
+        _, final_test_acc = evaluate(model, test_loader, "cuda")
         best_acc = max((a for _, a in eval_points), default=final_test_acc)
 
         log_msg(f"DONE: final_test_acc={final_test_acc:.4f} best_acc={best_acc:.4f} time={total_time:.0f}s")
