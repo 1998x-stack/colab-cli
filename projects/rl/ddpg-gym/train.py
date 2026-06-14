@@ -366,6 +366,21 @@ torch.save({"actor": actor.state_dict(), "critic": critic.state_dict(),
             "actor_opt": actor_opt.state_dict(), "critic_opt": critic_opt.state_dict(),
             "episode": max(e["episode"] for e in metrics["episodes"])},
            f"{args.out_dir}/final_model.pt")
+
+# Summary
+summary = {
+    "env": args.env,
+    "episodes_completed": len(metrics["episodes"]),
+    "total_steps": step,
+    "best_eval_reward": best_eval,
+    "final_actor_loss": metrics["episodes"][-1].get("actor_loss") if metrics["episodes"] else None,
+    "final_critic_loss": metrics["episodes"][-1].get("critic_loss") if metrics["episodes"] else None,
+    "n_evals": len(metrics["eval_episodes"]),
+    "device": str(device),
+}
+with open(f"{args.out_dir}/summary.json", "w") as f:
+    json.dump(summary, f, indent=2)
+
 log_print(f"\n=== DONE | best_eval={best_eval:.2f} | total_steps={step} | {datetime.now()} ===")
 log_print(f"Output: {args.out_dir}/")
 log_print("  train.log  metrics.json  best_model.pt  final_model.pt  plots/progress.png")
