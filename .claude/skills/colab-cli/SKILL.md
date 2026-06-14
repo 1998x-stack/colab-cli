@@ -16,11 +16,18 @@ Command-line interface for Google Colab — provision GPU/TPU VMs, run code remo
 
 ## Mental model
 
-Colab sessions are **ephemeral Linux VMs** running Jupyter kernels. Official free-tier limits: 12h max session, ~90min idle timeout. In practice from China, the `colab exec` WebSocket frequently drops through the proxy, making effective interactive windows ~12-15 min. The session itself survives (keep-alive daemon prevents idle timeout), but exec becomes unreachable. All `/content/` files vanish when the session ends — download or persist to Drive before that.
+Colab sessions are **ephemeral Linux VMs** running Jupyter kernels. Official free-tier limits: 12h max session.
+
+The keep-alive daemon (auto-spawned by `colab new`, calls `KeepAliveAssignment` RPC every 60s) is **broken due to an IAM deadlock** — it dies 61 seconds after every session creation. See `docs/colab-gpu-keepalive.md` for the full root-cause analysis.
+
+The **WebSocket connection** (`colab exec`) is the primary liveness signal. While the WebSocket stays open, the session survives — even with a dead keep-alive daemon. The session dies ~2-3 minutes after the last WebSocket closes. From China, WebSocket stability is ~8-12 minutes per connection (see `docs/websocket-stability-china.md`).
+
+All `/content/` files vanish when the session ends — download or persist to Drive before that.
 
 **Two independent network paths:**
 
 - **REST** (`colab.pa.googleapis.com`): `colab new`, keep-alive, `colab stop`. Short-lived HTTPS, goes through `requests` proxy auto-detection.
+- **REST** (`*.prod.colab.dev`): `colab upload`, `colab download`. HTTPS PUT/GET via Jupyter Contents API. NOT WebSocket — same domain, different transport.
 - **WebSocket** (`*.prod.colab.dev`): `colab exec`. Long-lived WSS, `websocket-client` does NOT pass proxy params — the root cause of most disconnects.
 
 Key distinctions that trip people up:
@@ -69,9 +76,9 @@ export HTTP_PROXY=http://127.0.0.1:7890
 export ALL_PROXY=socks5://127.0.0.1:7890
 ```
 
-Which variant works changes per session — flip and retry. `colab sessions`/`colab new`/`colab stop` are REST-only (always use proxy). Only `colab exec`/`colab upload`/`colab download` might need `no_proxy`.
+Which variant works changes per session — flip and retry. `colab sessions`/`colab new`/`colab stop` are REST-only to `colab.pa.googleapis.com` (always use proxy). `colab exec`/`colab upload`/`colab download` all go to `*.prod.colab.dev` — they are affected by `no_proxy` because of the shared domain, even though upload/download use REST while exec uses WebSocket.
 
-See `docs/websocket-stability-analysis.md` for the full root-cause analysis.
+See `docs/websocket-stability-china.md` for the full root-cause analysis.
 
 ## Multi-account setup
 
@@ -115,8 +122,10 @@ Colab sessions are ephemeral. Official free-tier limits: 12h max session, ~90min
 **The 12-15 min effective window** observed from China is WebSocket disconnection through the proxy, NOT Colab killing the session. The keep-alive daemon (auto-spawned by `colab new`, calls `KeepAliveAssignment` RPC via REST every 60s, max 24h) prevents idle timeout. But it does nothing for the exec WebSocket — those are separate network paths.
 
 **Failure modes:**
+- **Keep-alive daemon always dead** — IAM deadlock (403 `USER_PROJECT_DENIED`), daemon exits at T+61s every session. Session relies on WebSocket for liveness.
 - WebSocket handshake failure (~20-30% of exec attempts) — proxy can't establish WSS tunnel
 - WebSocket mid-exec disconnect — NAT timeout or GFW RST, exec hangs then `TimeoutError`
+- Session death ~2-3 min after last WebSocket closes (no keep-alive backup)
 - GPU quota exhausted — `TooManyAssignmentsError`, switch accounts or wait 12-24h
 - Session pruned after connection errors — `[colab] Pruned 1 stale local session(s)`
 
@@ -237,7 +246,7 @@ Read `references/gotchas.md` for the full list (22 field-tested items). The ones
 
 ## WebSocket stability
 
-The root cause of most `colab exec` failures from China: `KernelWebSocketClient._run_websocket()` calls `run_forever()` without proxy parameters, `ping_interval=60` races with NAT timeouts, and `reconnect_interval=0` means no auto-reconnect. See `docs/websocket-stability-analysis.md` for the full root-cause analysis.
+The root cause of most `colab exec` failures from China: `KernelWebSocketClient._run_websocket()` calls `run_forever()` without proxy parameters, `ping_interval=60` races with NAT timeouts, and `reconnect_interval=0` means no auto-reconnect. See `docs/websocket-stability-china.md` for the full root-cause analysis.
 
 **The fix:** Detached bootstrap — exec returns in seconds, training survives all WebSocket drops (see Executing code > Background / nohup execution above).
 
@@ -377,3 +386,10 @@ One row per epoch. Write header on creation, append rows immediately after each 
 ## File paths
 
 The Colab VM's working directory is `/content/`. Uploaded files with relative paths land there. Use `colab ls` to verify what's on the VM.
+
+## Related docs
+
+- `docs/colab-gpu-keepalive.md` — Root cause: IAM deadlock, WebSocket as primary liveness signal, relay handoff protocol
+- `docs/websocket-stability-china.md` — China WebSocket stability: NAT/GFW/proxy layer analysis, ping gap, mitigation
+- `docs/core-flows.md` — Command-level sequence diagrams (new, exec, upload, keep-alive, relay handoff, stop)
+- `docs/google-colab-cli-source-analysis.md` — Full source code architecture reference (v0.5.11)

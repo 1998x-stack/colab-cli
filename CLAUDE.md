@@ -104,13 +104,17 @@ REST operations (`colab new`, `colab stop`, `colab sessions`, `colab download`) 
 
 **SOCKS5 needs PySocks for REST:** `pip install requests[socks]` or use `http://` style for REST.
 
-**`colab upload` goes through WebSocket** — it fails when exec WebSocket is unstable. For multi-file projects, use the base64 embed pattern (see colab-cli gotchas.md).
+**`colab upload` and `colab download` go to `*.prod.colab.dev` via REST** (HTTPS PUT/GET, not WebSocket — see `contents.py:56-90`). They share the same domain as `colab exec` WebSocket but use a different transport. They are affected by `no_proxy` because of the domain, not because they use WebSocket. Upload/download are reliable even when WebSocket drops.
 
 ## Key constraints (not in skills)
 
 These are project-specific or hyper-specific operational constraints:
 
-- **Colab free-tier GPU sessions die after ~10 min (2026-06-13发现)**: 连续5个session实测——free-tier GPU会在8-10分钟后被Colab回收，与项目/账号无关。这是动态GPU配额，不是bug。**使用Colab GPU前必须预估训练时间，确保单次训练在10分钟内完成。如果超时，考虑：(a) 用小模型/小数据集热身，(b) 分配到多个Colab session并行，(c) 超时任务用Kaggle（30h/week GPU，session持续数小时）。** 预估方法：总steps ÷ 预估steps/sec ÷ 60 = 分钟数。MuJoCo约3000 steps/sec，Atari RAM约350 steps/sec（MLP），Atari pixels约50 steps/sec（CNN）。
+- **Colab free-tier GPU sessions die after ~10 min (2026-06-13发现, 根因2026-06-14确认)**: 连续5个session实测——free-tier GPU会在8-10分钟后被Colab回收。**根因：keep-alive守护进程因IAM死锁（`USER_PROJECT_DENIED` 403）在T+61s死亡，导致无存活信号到达Colab后端。约10分钟后GPU被回收。** WebSocket连接（`colab exec`）是实际的主要存活信号——WebSocket存活期间会话持续存活，WebSocket关闭后约2-3分钟会话死亡。详见`docs/colab-gpu-keepalive.md`。
+
+  **单窗口训练（≤8 min）：** 单个`colab exec --timeout 540`保持WebSocket存活。预估：总steps ÷ 预估steps/sec ÷ 60 = 分钟数。MuJoCo约3000 steps/sec，Atari RAM约350 steps/sec（MLP），Atari pixels约50 steps/sec（CNN）。
+
+  **长训练（>8 min）：** 使用WebSocket中继交接模式（详见`docs/colab-gpu-keepalive.md` §5.2）。多个`colab exec`看门狗串链（7分钟窗口，1分钟重叠），内核串行队列确保交接间隙<5秒。已实测验证支持20+分钟连续覆盖。受限于中国WebSocket稳定性（每次连接约8-12分钟）和免费套餐12h会话上限。超长任务仍建议用Kaggle。
 - **First Colab session rarely produces useful training**: Data download + tokenizer training + CUDA JIT = 7-10 min overhead. Combined with ~10 min effective GPU window, first session almost never completes training. Use a short warmup session first to cache data, then re-provision for the real run.
 - **Checkpoint downloads >600MB fail through proxy**: Full checkpoint with optimizer state = ~1GB, proxy breaks at ~624MB (IncompleteRead). Save a separate **weights-only checkpoint** (~120-233MB) for download.
 - **BLEU/beam search is the hidden bottleneck** (transformer_iwslt): Beam search eval on full val set takes hours. Use 100-sentence subset with greedy decode for training-time eval.
@@ -119,7 +123,7 @@ These are project-specific or hyper-specific operational constraints:
 
 ## Cron watchtower for long-running Colab jobs
 
-Colab's WebSocket is unreliable from China — `colab exec` drops after 12-15 min, logs buffer, and you can't watch training live. **Set up a cron watchtower** that periodically fetches outputs from the VM via REST (`colab download`), which survives WebSocket drops.
+Colab's WebSocket is unreliable from China — `colab exec` drops after 8-12 min (carrier-dependent: Telecom ~8-10 min, Unicom ~10-12 min, Mobile ~10-15 min). Logs buffer, and you can't watch training live. **Set up a cron watchtower** that periodically fetches outputs from the VM via REST (`colab download`), which survives WebSocket drops.
 
 **Pattern (2026-06-13, rl-sarsa-gym):**
 
@@ -145,7 +149,12 @@ Colab's WebSocket is unreliable from China — `colab exec` drops after 12-15 mi
 
 **When to use:** Any Colab training run expected to last >5 minutes. Cancel the cron when training completes; the fetched artifacts remain as a permanent record.
 
-**Caveat:** `colab exec` (used for tar) can still fail via WebSocket. If exec fails, fall back to `colab download` directly on known output paths — the training process may have written new files even if exec is unreachable.
+**Caveat:** `echo '...' | colab exec` (inline Python via stdin) can fail silently for
+multi-line scripts — use `colab exec -f <script.py>` for reliability (see
+`docs/core-flows.md` §15.7). If the tar step fails, fall back to downloading
+individual files directly: `colab download -s <name> /content/<output>/logs/train.log
+<local>/train.log`. For critical monitoring, pre-upload a `fetch.py` script to
+the VM and run it via `colab exec -f fetch.py`.
 
 ## High-signal training outputs (AI/ML/RL)
 
@@ -279,12 +288,9 @@ VRAM fit (T4 15.6 GB): SmolLM2-1.7B ~12.8 GB. Qwen2.5-3B likely fits. 7B needs A
 ## Pre-deploy checklist
 
 - **Ruff lint (MANDATORY)**: `ruff check .` must pass with zero errors before deploying to Colab. Colab sessions are precious (~10 min GPU window) — lint failures discovered mid-session waste a provisioning slot. Run locally first: `ruff check . && ruff check --fix .` to auto-fix what can be auto-fixed. Config: `ruff.toml` (target py310, ignores E402/E501/E701/E702/E741 for project-appropriate patterns).
-- **Time-budget check (MANDATORY)**: Estimate total runtime. Formula: `total_steps ÷ estimated_steps_per_sec ÷ 60 = minutes`. Must fit within 10 min for Colab GPU. If >10 min: reduce steps, use smaller model, split across sessions, or use Kaggle.
-  - T4 MuJoCo (MLP, 1 env): ~3000 steps/sec
-  - T4 Atari RAM (MLP, 4 envs): ~350 steps/sec
-  - T4 Atari pixels (CNN, 4 envs): ~50 steps/sec
-  - T4 tabular RL (CPU-bound): ~2000 steps/sec
-  - Kaggle P100 MuJoCo: ~5000 steps/sec
+- **Time-budget check (MANDATORY)**: Estimate total runtime. Formula: `total_steps ÷ estimated_steps_per_sec ÷ 60 = minutes`.
+  - **Single window (≤8 min):** Safe for one `colab exec --timeout 540`. T4 MuJoCo (MLP, 1 env): ~3000 steps/sec. T4 Atari RAM (MLP, 4 envs): ~350 steps/sec. T4 Atari pixels (CNN, 4 envs): ~50 steps/sec. T4 tabular RL (CPU-bound): ~2000 steps/sec. Kaggle P100 MuJoCo: ~5000 steps/sec.
+  - **Long training (>8 min):** Use WebSocket relay handoff (see `docs/colab-gpu-keepalive.md` §5.2). Chain multiple `colab exec` watchdogs with 7-min windows and 1-min overlap. Kernel serial queue ensures <5s handoff gaps. If relay overhead is too high, use Kaggle.
 - Run forward pass locally (random tensor) to verify model output shape and no NaN
 - Fit PCA on a sample locally to verify resize → stack doesn't crash
 - Validate data pipeline loads images correctly (check first batch shapes + labels)

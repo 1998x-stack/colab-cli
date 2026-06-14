@@ -1,25 +1,60 @@
 # colab-cli
 
-**GPU training from the terminal.** Provision Colab/Kaggle VMs, execute training scripts, monitor progress, and fetch artifacts — all without opening a browser.
+**GPU training from the terminal.** Provision Colab/Kaggle VMs, execute
+training scripts, monitor progress, and fetch artifacts — all without opening
+a browser. Built for reliability from mainland China behind the GFW.
 
 <p align="center">
-  <a href="https://1998x-stack.github.io/colab-cli/"><strong>🌐 Landing Page</strong></a> &nbsp;·&nbsp;
+  <a href="https://1998x-stack.github.io/colab-cli/"><strong>Landing Page</strong></a> &nbsp;·&nbsp;
+  <a href="#-root-cause-analysis"><strong>Root Cause Analysis</strong></a> &nbsp;·&nbsp;
   <a href="#-projects"><strong>Projects</strong></a> &nbsp;·&nbsp;
-  <a href="#-benchmark"><strong>Benchmark</strong></a> &nbsp;·&nbsp;
   <a href="#-quickstart"><strong>Quickstart</strong></a> &nbsp;·&nbsp;
-  <a href="./projects/rl/REPORT_ddpg_vs_td3.md"><strong>DDPG vs TD3 Report</strong></a>
+  <a href="#-docs"><strong>Docs</strong></a>
 </p>
 
 ---
 
+## Root Cause Analysis
+
+Free-tier Colab GPU sessions die after ~10 minutes — even with active training.
+We traced this to its source and built a verified fix.
+
+**The keep-alive daemon is broken.** Every `colab new --gpu T4` spawns a
+background daemon that calls the `KeepAliveAssignment` RPC to tell Colab
+"this session is still in use." But an IAM deadlock in the `x-goog-user-project`
+header causes **HTTP 403 `USER_PROJECT_DENIED`** on every call. The daemon
+exits 61 seconds after every session starts. Zero keep-alive pings ever reach
+Colab's backend.
+
+**The WebSocket connection is the real liveness signal.** We proved through
+3 live T4 GPU experiments that the `colab exec` WebSocket connection — not the
+keep-alive daemon — prevents GPU reclamation. While the WebSocket stays open,
+the session stays alive. The session dies ~2-3 minutes after the last WebSocket
+closes.
+
+**Relay handoff extends sessions beyond the 10-minute cliff.** From China,
+WebSocket connections drop at 8-12 minutes (carrier NAT + GFW). By chaining
+multiple `colab exec` watchdogs with 7-minute windows and 1-minute overlap,
+sessions achieve continuous coverage. The Jupyter kernel's serial execution
+queue ensures handoff gaps of under 5 seconds — well within the ~2-minute
+grace period.
+
+| Document | Content |
+|----------|---------|
+| [`docs/colab-gpu-keepalive.md`](./docs/colab-gpu-keepalive.md) | Root cause: IAM deadlock, WebSocket liveness, relay handoff protocol |
+| [`docs/websocket-stability-china.md`](./docs/websocket-stability-china.md) | China WebSocket drops: NAT/GFW/proxy layer analysis, ping gap |
+| [`docs/core-flows.md`](./docs/core-flows.md) | Command-level sequence diagrams for all `colab` operations |
+| [`docs/google-colab-cli-source-analysis.md`](./docs/google-colab-cli-source-analysis.md) | Full source architecture (google-colab-cli v0.5.11) |
+
 ## Features
 
-- **One-command GPU provisioning** — `colab new --gpu T4` gets you a T4 VM in seconds
-- **Detached background training** — `start_new_session=True` survives WebSocket drops behind proxies
-- **Cron-based monitoring** — fetch logs, metrics, and plots every N minutes via `fetch.sh`
+- **One-command GPU provisioning** — `colab new --gpu T4` gets a T4 VM in seconds
+- **Relay handoff for long training** — chain `colab exec` watchdogs to bypass the 10-min GPU timeout
+- **WebSocket liveness monitoring** — keep sessions alive via kernel WebSocket, not the broken REST daemon
+- **Cron-based artifact fetching** — download logs, metrics, and plots every N minutes via `colab download` (REST, survives WebSocket drops)
 - **Multi-account parallelism** — 4 Colab + 4 Kaggle accounts for parallel GPU jobs
-- **China proxy resilience** — SOCKS5/HTTP CONNECT flip pattern for GFW-bypassed REST + WebSocket
-- **Full artifact pipeline** — train on VM → save checkpoints → download plots/metrics → local analysis
+- **China proxy resilience** — two-config SOCKS5/HTTP CONNECT flip pattern, carrier NAT timeout analysis, GFW bypass
+- **Full artifact pipeline** — structured training outputs (timestamped logs, metrics CSV, multi-panel PNGs, checkpoints)
 
 ## Quickstart
 
@@ -33,18 +68,19 @@ colab --auth oauth2 new
 # 3. Provision GPU
 colab new --gpu T4 -s training
 
-# 4. Upload & launch (detached, survives proxy drops)
+# 4. Upload & launch (detached bootstrap, survives WebSocket drops)
 colab upload train.py /content/train.py
 colab exec -f launch.py --timeout 120
 
-# 5. Monitor — fetch artifacts on a cron
-./fetch.sh                          # downloads train.log, metrics.json, progress.png
+# 5. Monitor — fetch artifacts on a cron (REST-based, WS-independent)
+./fetch.sh
 
 # 6. Tear down
 colab stop -s training
 ```
 
-> **From China?** See [Proxy Setup](#-proxy-setup) below. The two-config flip handles GFW interference.
+> **From China?** See [Proxy Setup](#-proxy-setup). Use Config B (HTTP CONNECT) by default. For training >8 min, use [relay handoff](./docs/colab-gpu-keepalive.md).
+> **Don't have a GPU?** Use Kaggle (30h/week free P100): `kaggle kernels push -p ./project`. See [kaggle-cli skill](./.claude/skills/kaggle-cli/SKILL.md).
 
 ## Projects
 
@@ -112,7 +148,7 @@ A growing collection of ML experiments trained on free-tier Colab/Kaggle GPUs.
 
 ## Benchmark: DDPG vs TD3
 
-We ran identical Pendulum-v1 training (200 episodes, seed 42, T4 GPU) to compare stability.
+Identical Pendulum-v1 training (200 episodes, seed 42, T4 GPU).
 
 | Metric | DDPG | TD3 |
 |--------|------|-----|
@@ -123,39 +159,51 @@ We ran identical Pendulum-v1 training (200 episodes, seed 42, T4 GPU) to compare
 | **Last-5 eval stdev** | 51.1 | **27.9** |
 | **Eval trend** | Erratic, plateaued | Monotonic, still improving |
 
-**Key finding**: DDPG found a higher peak (-40.95) but immediately lost it. TD3 converged more slowly but its final model is its best model — the policy was still improving at episode 200. For deployment (where you ship the final checkpoint, not a mid-training snapshot), TD3 wins decisively.
+DDPG found a higher peak (-40.95) but immediately lost it. TD3 converged
+more slowly but its final model is its best model. For deployment, TD3 wins.
 
-**Full report**: [`projects/rl/REPORT_ddpg_vs_td3.md`](./projects/rl/REPORT_ddpg_vs_td3.md) — 20-point eval table, block-average trends, stability analysis, interactive charts on the [landing page](https://1998x-stack.github.io/colab-cli/).
+**Full report**: [`projects/rl/REPORT_ddpg_vs_td3.md`](./projects/rl/REPORT_ddpg_vs_td3.md)
 
 ## Proxy Setup
 
-Colab APIs are blocked in mainland China. Two network paths need different proxy treatment.
+Colab APIs are blocked in mainland China. REST and WebSocket use different
+network paths and need different proxy treatment.
 
 ```bash
-# Config A — SOCKS5 for REST, WebSocket direct (try first):
-export HTTPS_PROXY=socks5://127.0.0.1:7890
-export HTTP_PROXY=socks5://127.0.0.1:7890
-export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
-
-# Config B — HTTP CONNECT tunnel (flip if A returns 503):
+# Config B — HTTP CONNECT tunnel (RECOMMENDED, start here):
 export HTTPS_PROXY=http://127.0.0.1:7890
 export HTTP_PROXY=http://127.0.0.1:7890
 export ALL_PROXY=socks5://127.0.0.1:7890
+
+# Config A — SOCKS5 for REST, WebSocket direct (flip if B fails):
+export HTTPS_PROXY=socks5://127.0.0.1:7890
+export HTTP_PROXY=socks5://127.0.0.1:7890
+export no_proxy="*.colab.dev,*.prod.colab.dev,localhost,127.0.0.1"
 ```
 
-**Diagnosing GPU failures**:
+**Diagnosing GPU provisioning failures:**
 
-| Config | Error on `colab new --gpu T4` | Action |
-|--------|-------------------------------|--------|
-| A (SOCKS5 + no_proxy) | `Service Unavailable` (503) | Flip to config B |
-| B (HTTP CONNECT) | `Precondition Failed` (412) | GPU exhausted — try other accounts |
-| All accounts | 412 | Use CPU fallback: omit `--gpu` |
+| Config | Error on `colab new --gpu T4` | Meaning |
+|--------|-------------------------------|---------|
+| A (SOCKS5 + no_proxy) | `Service Unavailable` (503) | Proxy issue OR GPU exhaustion — ambiguous |
+| B (HTTP CONNECT) | `Precondition Failed` (412) | Genuine GPU quota exhaustion |
 
-Config B handles the full workflow (new, upload, exec, download) without switching.
+If Config B returns 412, try other accounts (`cb`, `cc`, `clb`). If ALL
+accounts return 412, GPU is globally unavailable — use CPU fallback (omit
+`--gpu`) or Kaggle.
+
+**Key insight** (`docs/websocket-stability-china.md`): WebSocket connections
+from China drop after 8-12 minutes due to carrier NAT timeouts (Telecom 8-10
+min, Unicom 10-12 min, Mobile 10-15 min). WebSocket ping frames (opcode 0x9)
+are 2-byte control frames with no application payload — most carrier NAT
+devices don't count them as activity. The `reconnect_interval=0` in
+`jupyter_kernel_client` means zero automatic recovery.
 
 ## Accounts
 
-Four Colab accounts via isolated `$HOME` directories, four Kaggle accounts via token files. Only 1 GPU per free account — multi-account enables parallel training.
+Four Colab accounts via isolated `$HOME` directories, four Kaggle accounts
+via token files. Only 1 GPU per free account — multi-account enables parallel
+training.
 
 ```bash
 colab   # hackxie1998 (default)    cb    # stefaniehu929
@@ -167,64 +215,77 @@ cc      # xbetterdetermine          clb   # xieminghack
 KAGGLE_API_TOKEN="$(cat .kaggle/access_token4)" kaggle kernels push -p ./project
 ```
 
-See [`.claude/skills/colab-cli/SKILL.md`](./.claude/skills/colab-cli/SKILL.md) and [`.claude/skills/kaggle-cli/SKILL.md`](./.claude/skills/kaggle-cli/SKILL.md) for full multi-account workflows.
+See [`.claude/skills/colab-cli/SKILL.md`](./.claude/skills/colab-cli/SKILL.md)
+and [`.claude/skills/kaggle-cli/SKILL.md`](./.claude/skills/kaggle-cli/SKILL.md)
+for full multi-account workflows.
 
 ## Repository Structure
 
 ```
 .claude/skills/                  # Claude Code skills (colab-cli, kaggle-cli)
-├── colab-cli/                   # Full Colab CLI workflow + 22 gotchas
-└── kaggle-cli/                  # Full Kaggle CLI workflow + 16 gotchas
+├── colab-cli/                   # Full Colab CLI workflow + gotchas
+└── kaggle-cli/                  # Full Kaggle CLI workflow + gotchas
 docs/                            # Documentation
+├── colab-gpu-keepalive.md       # Root cause: IAM deadlock, WebSocket liveness, relay
+├── websocket-stability-china.md # China WS drops: NAT/GFW/proxy layer analysis
+├── core-flows.md                # Command-level sequence diagrams
+├── google-colab-cli-source-analysis.md  # Full source architecture (v0.5.11)
 ├── guides/                      # How-to guides (6 docs)
 ├── reference/                   # Technical deep-dives (5 docs)
-├── superpowers/                 # Superpowers plans and specs
-├── google-workspace-mcp/        # Google Workspace MCP integration
-└── plots/                       # Generated plots
+└── google-workspace-mcp/        # Google Workspace MCP integration
 papers/                          # Research paper notes
 ├── s1/                          # s1: Simple test-time scaling
 └── seq2seq/                     # Seq2Seq with attention
 projects/                        # ML training projects (30 total, 6 categories)
 ├── rl/                          # Reinforcement Learning (9 projects)
-│   ├── td3-gym/ ddpg-gym/ ddpg-td3-mujoco/ ddqn-noisy-ram/
-│   ├── ppo-atari-ram/ ppo-mujoco/ rl-dqn-atari/ rl-sac/ rl-sarsa-gym/
-│   └── REPORT_ddpg_vs_td3.md
 ├── cv/                          # Computer Vision (5 projects)
-│   ├── alexnet_imagenette/ cnn-cifar10/ cnn-explainer/
-│   └── cnn-quantization/ vit-cifar10/
 ├── nlp/                         # NLP & LLMs (11 projects)
-│   ├── transformer_iwslt/ nanogpt/ nanochat-colab/ s1-t4/ seq2seq-t4/
-│   ├── rnn-imdb/ word2vec-c4/ rag-fasttext/ hotpotqa-reasoning/
-│   └── vllm-compare/ vllm-rag/
 ├── gnn/                         # Graph Neural Networks (1 project)
-│   └── gnn-citation/
 ├── systems/                     # Systems & Infrastructure (3 projects)
-│   └── autoresearch-t4/ cuda-tutorial/ swe-agent-colab/
 └── tutorials/                   # Education (1 project)
-    └── ml-tutorial/
+tests/ws-keepalive/              # WebSocket keepalive test scripts + output
 index.md                         # Full project index with descriptions
 ```
 
 ## Key Gotchas
 
-- **`colab exec -f` reads LOCAL files** (relative to CWD), not remote VM files. Upload is only needed for subprocess-spawned scripts.
-- **First Colab session rarely produces useful training** — data download + CUDA JIT = 7-10 min overhead. Second session with cached data works normally.
-- **stdout is buffered in subprocess** — set `PYTHONUNBUFFERED=1` and use `python -u` in background jobs.
-- **Empty logs ≠ stuck job** — verify with `nvidia-smi` or check for side effects before killing.
-- **`colab download` doesn't do directories** — tar first: `tar -czf out.tar.gz -C /content dir/`.
-- **Checkpoints >600MB fail through proxy** — save weights-only for download.
-- **SOCKS5 proxy needs PySocks** — `pip install requests[socks]` or use HTTP style.
-- **macOS bash is 3.2** — no associative arrays, no `shopt -s globstar`. Use indexed arrays only.
-- **Shell aliases don't work in bash scripts** — use explicit `HOME=~/colab-accounts/account-b /path/to/colab`.
+- **Keep-alive daemon is broken.** The `KeepAliveAssignment` RPC fails with
+  HTTP 403 on every session (IAM deadlock). Sessions rely on WebSocket
+  liveness instead. See [`docs/colab-gpu-keepalive.md`](./docs/colab-gpu-keepalive.md).
+- **WebSocket drops at 8-12 min from China.** Carrier NAT doesn't recognize
+  WebSocket ping frames as activity. Use relay handoff for training >8 min.
+- **`colab exec -f` reads LOCAL files** (relative to CWD), not remote VM files.
+  Upload is only needed for subprocess-spawned scripts.
+- **`colab upload` goes to `*.prod.colab.dev` via REST** (HTTPS PUT), not
+  WebSocket. It survives WebSocket drops. Same domain, different transport.
+- **First Colab session rarely completes training** — data download + CUDA JIT
+  = 7-10 min overhead. Use a warmup session first.
+- **stdout is buffered in subprocess.** Set `PYTHONUNBUFFERED=1` and use
+  `python -u` in background jobs, plus `flush=True` on all `print()` calls.
+- **Empty logs ≠ stuck job.** Verify with `nvidia-smi` or check for side effects
+  (files appearing, GPU utilization) before assuming the job is dead.
+- **Inline Python via stdin is unreliable.** `echo '...' | colab exec` can
+  fail silently for multi-line scripts. Always use `-f <file.py>` for
+  production watchdogs and launchers.
+- **`colab download` doesn't do directories.** Tar on VM first:
+  `tar -czf out.tar.gz -C /content dir/`.
+- **Checkpoints >600MB fail through proxy.** Save weights-only checkpoint
+  (~120-233MB) for download; keep full optimizer state on VM.
+- **macOS bash is 3.2.** No associative arrays, no `shopt -s globstar`.
+- **Shell aliases don't work in bash scripts.** Use explicit
+  `HOME=~/colab-accounts/account-b /path/to/colab` in `#!/bin/bash` scripts.
 
 ## Docs
 
+- [`docs/colab-gpu-keepalive.md`](./docs/colab-gpu-keepalive.md) — Root cause: IAM deadlock, WebSocket liveness, relay handoff protocol
+- [`docs/websocket-stability-china.md`](./docs/websocket-stability-china.md) — China WebSocket drops: NAT/GFW/proxy layer analysis, ping gap
+- [`docs/core-flows.md`](./docs/core-flows.md) — Command-level sequence diagrams (new, exec, upload, keep-alive, relay, stop)
+- [`docs/google-colab-cli-source-analysis.md`](./docs/google-colab-cli-source-analysis.md) — Full source code architecture reference (v0.5.11)
 - [`docs/guides/`](./docs/guides/) — How-to guides (Colab CLI, multi-account, quantization, session monitoring)
-- [`docs/reference/`](./docs/reference/) — Technical deep-dives (model gotchas, WebSocket analysis, Kaggle analysis)
-- [`docs/superpowers/`](./docs/superpowers/) — Superpowers plans and specs
+- [`docs/reference/`](./docs/reference/) — Technical deep-dives (model gotchas, Kaggle analysis)
 - [`.claude/skills/colab-cli/references/gotchas.md`](./.claude/skills/colab-cli/references/gotchas.md) — 22 field-tested gotchas
 - [`.claude/skills/colab-cli/references/workflows.md`](./.claude/skills/colab-cli/references/workflows.md) — Full workflow patterns
-- [`projects/rl/REPORT_ddpg_vs_td3.md`](./projects/rl/REPORT_ddpg_vs_td3.md) — DDPG vs TD3 benchmark
+- [`projects/rl/REPORT_ddpg_vs_td3.md`](./projects/rl/REPORT_ddpg_vs_td3.md) — DDPG vs TD3 benchmark report
 - [`index.md`](./index.md) — Full project index with descriptions
 
 ## License
