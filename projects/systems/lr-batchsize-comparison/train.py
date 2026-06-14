@@ -109,8 +109,13 @@ def main():
             batch_losses = []
             eval_points = []
 
+            train_iter = iter(train_loader)
             for batch_idx in range(1, 4001):
-                x, y = next(iter(train_loader))
+                try:
+                    x, y = next(train_iter)
+                except StopIteration:
+                    train_iter = iter(train_loader)
+                    x, y = next(train_iter)
                 x, y = x.cuda(), y.cuda()
 
                 opt.zero_grad(set_to_none=True)
