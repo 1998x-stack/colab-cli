@@ -401,6 +401,19 @@ def main():
             "episode_history": metrics_log,
         }, f, indent=2)
 
+    # Standalone summary for cron fetch
+    summary = {
+        "env": ENV_NAME,
+        "best_return": best_return,
+        "total_episodes": len(returns),
+        "total_steps": agent.total_steps,
+        "train_time_seconds": round(train_time, 1),
+        "solved": best_return > 18,
+        "device": str(DEVICE),
+    }
+    with open(os.path.join(OUTPUT_DIR, "summary.json"), "w") as f:
+        json.dump(summary, f, indent=2)
+
     log(f"\nDone in {train_time/60:.1f}m. Best return: {best_return:.1f}")
     log(f"Output: {OUTPUT_DIR}/")
 
