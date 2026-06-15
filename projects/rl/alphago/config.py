@@ -87,8 +87,10 @@ CONFIG_9X9_FAST = AlphaGoConfig(
     n_history=4,
     num_simulations=200,
     n_selfplay_games=50,
-    n_eval_games=100,
+    n_eval_games=10,
+    eval_mcts_simulations=150,
     n_epochs=5,
+    first_session=False,
 )
 
 CONFIG_9X9_FIRST = AlphaGoConfig(
