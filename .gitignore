@@ -49,3 +49,6 @@ output-v4/
 projects/alphago/launch.py
 .claude/.claude/
 tmp/
+
+# Superpowers session state
+.superpowers/
